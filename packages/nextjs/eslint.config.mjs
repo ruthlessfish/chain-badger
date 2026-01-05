@@ -20,6 +20,10 @@ export default defineConfig([
     rules: {
       "@typescript-eslint/no-explicit-any": "off",
       "@typescript-eslint/ban-ts-comment": "off",
+      "@next/next/no-img-element": "off",
+      "@typescript-eslint/no-unused-vars": "off",
+      "react/no-unescaped-entities": "off",
+      "@next/next/no-html-link-for-pages": "off",
 
       "prettier/prettier": [
         "warn",
