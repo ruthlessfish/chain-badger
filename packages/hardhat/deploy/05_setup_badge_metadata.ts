@@ -3,10 +3,10 @@ import { DeployFunction } from "hardhat-deploy/types";
 
 /**
  * Optional deployment step to populate BadgeMetadata with initial badge data
- * 
+ *
  * This runs after all contracts are deployed.
  * You can skip this by using --tags without "setup"
- * 
+ *
  * @param hre HardhatRuntimeEnvironment object.
  */
 const setupBadgeMetadata: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {

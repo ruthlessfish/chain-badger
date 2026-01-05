@@ -9,7 +9,7 @@ const deploymentSummary: DeployFunction = async function (hre: HardhatRuntimeEnv
   try {
     const badgeTokenDeployment = await hre.deployments.get("BadgeToken");
     const badgeMinterDeployment = await hre.deployments.get("BadgeMinter");
-    
+
     let badgeMetadataDeployment;
     try {
       badgeMetadataDeployment = await hre.deployments.get("BadgeMetadata");
@@ -52,7 +52,6 @@ const deploymentSummary: DeployFunction = async function (hre: HardhatRuntimeEnv
     console.log("\n" + "=".repeat(60));
     console.log("Happy badging!");
     console.log("=".repeat(60) + "\n");
-
   } catch (error) {
     console.error("Error:", error);
   }

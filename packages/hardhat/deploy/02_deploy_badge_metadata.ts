@@ -14,7 +14,7 @@ const deployBadgeMetadata: DeployFunction = async function (hre: HardhatRuntimeE
   const { deploy } = hre.deployments;
 
   console.log("\n📚 Deploying BadgeMetadata (Dynamic Metadata)...");
-  
+
   // Get the deployer/owner address
   const [deployerSigner] = await hre.ethers.getSigners();
   const initialOwner = deployerSigner.address;

@@ -1,12 +1,12 @@
 /**
  * Setup Script: Populate BadgeMetadata Contract
- * 
+ *
  * This script populates the BadgeMetadata contract with initial badge data.
  * Run this after deploying all contracts.
- * 
+ *
  * Usage:
  *   yarn hardhat run scripts/setupBadgeMetadata.ts --network <network>
- * 
+ *
  * Example:
  *   yarn hardhat run scripts/setupBadgeMetadata.ts --network base-sepolia
  */
@@ -65,7 +65,7 @@ async function main() {
 
   // Get the deployed BadgeMetadata contract
   const BadgeMetadata = await hre.ethers.getContractFactory("BadgeMetadata");
-  
+
   let badgeMetadataAddress: string;
   try {
     // Use hre.deployments.get instead of require
@@ -85,7 +85,7 @@ async function main() {
 
   if (useBatch) {
     console.log(`\n📦 Setting badge data in batch (${BADGES.length} badges)...`);
-    
+
     const badgeIds = BADGES.map(b => b.id);
     const badgeInfos = BADGES.map(b => ({
       name: b.name,
@@ -99,24 +99,24 @@ async function main() {
       // @ts-expect-error - Contract methods not typed until after deployment
       const tx = await badgeMetadata.setBadgeDataBatch(badgeIds, badgeInfos);
       console.log(`Transaction hash: ${tx.hash}`);
-      
+
       const receipt = await tx.wait();
       console.log(`✅ Batch metadata set successfully! (Gas used: ${receipt?.gasUsed?.toString()})`);
     } catch (error: any) {
       console.error("❌ Error setting batch metadata:", error.message);
-      
+
       if (error.message.includes("Ownable: caller is not the owner")) {
         console.error("\n⚠️  You are not the owner of the BadgeMetadata contract.");
         console.error("   Make sure you're using the same account that deployed the contract.");
       }
-      
+
       process.exit(1);
     }
   } else {
     // Set badges individually (fallback)
     for (const badge of BADGES) {
       console.log(`\nSetting metadata for Badge #${badge.id}: ${badge.name}`);
-      
+
       const badgeInfo = {
         name: badge.name,
         description: badge.description,
@@ -129,7 +129,7 @@ async function main() {
         // @ts-expect-error - Contract methods not typed until after deployment
         const tx = await badgeMetadata.setBadgeData(badge.id, badgeInfo);
         console.log(`Transaction hash: ${tx.hash}`);
-        
+
         const receipt = await tx.wait();
         console.log(`✅ Metadata set! (Gas used: ${receipt?.gasUsed?.toString()})`);
       } catch (error: any) {
@@ -140,7 +140,7 @@ async function main() {
 
   // Verify the data was set correctly
   console.log("\n🔍 Verifying badge metadata...\n");
-  
+
   for (const badge of BADGES) {
     try {
       // @ts-expect-error - Contract methods not typed until after deployment

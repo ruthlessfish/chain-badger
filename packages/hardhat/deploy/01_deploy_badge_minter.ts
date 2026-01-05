@@ -14,11 +14,11 @@ const deployBadgeMinter: DeployFunction = async function (hre: HardhatRuntimeEnv
   const { deploy } = hre.deployments;
 
   console.log("\n🔐 Deploying BadgeMinter (EIP-712 Claims)...");
-  
+
   // Get the deployed BadgeToken address
   const badgeTokenDeployment = await hre.deployments.get("BadgeToken");
   const badgeTokenAddress = badgeTokenDeployment.address;
-  
+
   console.log("📎 BadgeToken address:", badgeTokenAddress);
 
   // Get the deployer/owner address

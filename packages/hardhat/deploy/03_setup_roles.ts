@@ -31,7 +31,7 @@ const setupRoles: DeployFunction = async function (hre: HardhatRuntimeEnvironmen
       console.log("✅ BadgeMinter already has MINTER_ROLE");
     } else {
       console.log("📝 Granting MINTER_ROLE to BadgeMinter...");
-      
+
       // Grant the role
       const tx = await badgeToken.grantRole(MINTER_ROLE, badgeMinterAddress);
       await tx.wait();
@@ -52,7 +52,6 @@ const setupRoles: DeployFunction = async function (hre: HardhatRuntimeEnvironmen
     console.log(`   - BadgeMinter: ${badgeMinterAddress}`);
     console.log(`   - MINTER_ROLE: ${MINTER_ROLE}`);
     console.log("\n🚀 ChainBadger system is ready to use!");
-
   } catch (error) {
     console.error("❌ Error setting up roles:", error);
     throw error;

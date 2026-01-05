@@ -14,7 +14,7 @@ const deployBadgeToken: DeployFunction = async function (hre: HardhatRuntimeEnvi
   const { deploy } = hre.deployments;
 
   console.log("\n🎨 Deploying BadgeToken (ERC-1155)...");
-  
+
   // Base URI for badge metadata
   // This can be updated later via setBadgeURI() for individual badges
   const baseURI = "https://api.chainbadger.com/metadata/";
@@ -28,12 +28,12 @@ const deployBadgeToken: DeployFunction = async function (hre: HardhatRuntimeEnvi
 
   // Get contract instance
   const badgeToken = await hre.ethers.getContractAt(CONTRACT_NAME, deployment.address);
-  
+
   // Verify roles
   const DEFAULT_ADMIN_ROLE = await badgeToken.DEFAULT_ADMIN_ROLE();
   const ADMIN_ROLE = await badgeToken.ADMIN_ROLE();
   const MINTER_ROLE = await badgeToken.MINTER_ROLE();
-  
+
   console.log("✅ BadgeToken deployed successfully!");
   console.log("📝 Base URI:", baseURI);
   console.log("🔑 Roles configured:");
