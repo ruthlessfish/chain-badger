@@ -1,52 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { BadgeCard } from "./BadgeCard";
 import { useAccount } from "wagmi";
-import { Badge, BadgeRarity, OwnedBadge } from "~~/types/badge";
-
-// Sample owned badges for UI (TODO: Replace with contract reads)
-const SAMPLE_OWNED_BADGES: OwnedBadge[] = [
-  {
-    id: 0n,
-    name: "Smart Contract Wizard",
-    description: "Completed the Alchemy University Ethereum Bootcamp and mastered Solidity fundamentals",
-    image: "https://via.placeholder.com/400x400/3B82F6/FFFFFF?text=SC+Wizard",
-    category: "Education",
-    rarity: BadgeRarity.Epic,
-    balance: 1n,
-  },
-];
+import { useBadges } from "~~/hooks/chainbadger/useBadges";
 
 export const OwnedBadgeGrid = () => {
   const { address } = useAccount();
-  const [ownedBadges, setOwnedBadges] = useState<OwnedBadge[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { badges, ownedBadgeIds, loading } = useBadges();
 
-  useEffect(() => {
-    const fetchOwnedBadges = async () => {
-      if (!address) {
-        setOwnedBadges([]);
-        setLoading(false);
-        return;
-      }
-
-      setLoading(true);
-      try {
-        // TODO: Replace with actual contract reads
-        // For now, simulate an empty collection (uncomment line below to show sample badge)
-        // setOwnedBadges(SAMPLE_OWNED_BADGES);
-        setOwnedBadges([]);
-      } catch (error) {
-        console.error("Error fetching owned badges:", error);
-        setOwnedBadges([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchOwnedBadges();
-  }, [address]);
+  // Filter to only show owned badges
+  const ownedBadges = badges
+    .filter(badge => ownedBadgeIds.has(badge.id))
+    .map(badge => ({
+      ...badge,
+      balance: 1n, // TODO: Get actual balance from contract
+    }));
 
   if (!address) {
     return (
