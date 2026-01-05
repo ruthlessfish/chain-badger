@@ -1,34 +1,11 @@
 "use client";
 
-import { useState } from "react";
 import type { NextPage } from "next";
 import { useAccount } from "wagmi";
 import { BadgeGrid } from "~~/components/chainbadger";
 
 const Home: NextPage = () => {
   const { address: connectedAddress } = useAccount();
-  const [isClaimingBadge, setIsClaimingBadge] = useState(false);
-
-  const handleClaimBadge = async (badgeId: bigint) => {
-    if (!connectedAddress) {
-      alert("Please connect your wallet first!");
-      return;
-    }
-
-    setIsClaimingBadge(true);
-    try {
-      // TODO: Implement claim flow
-      // 1. Request signature from backend API
-      // 2. Call BadgeMinter.claimBadge() with signature
-      console.log(`Claiming badge ${badgeId}...`);
-      alert(`Claim flow for badge ${badgeId} not yet implemented. Coming soon!`);
-    } catch (error) {
-      console.error("Error claiming badge:", error);
-      alert("Failed to claim badge. Please try again.");
-    } finally {
-      setIsClaimingBadge(false);
-    }
-  };
 
   return (
     <>
@@ -66,16 +43,7 @@ const Home: NextPage = () => {
               </p>
             </div>
 
-            {isClaimingBadge && (
-              <div className="mb-6 p-4 bg-primary/10 border border-primary rounded-lg">
-                <div className="flex items-center gap-3">
-                  <span className="loading loading-spinner loading-sm"></span>
-                  <span>Processing claim...</span>
-                </div>
-              </div>
-            )}
-
-            <BadgeGrid onClaimBadge={handleClaimBadge} />
+            <BadgeGrid />
           </div>
         </div>
 

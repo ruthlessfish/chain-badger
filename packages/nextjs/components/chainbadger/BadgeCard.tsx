@@ -1,5 +1,6 @@
 "use client";
 
+import { ClaimButton } from "./ClaimButton";
 import { Badge, RARITY_COLORS } from "~~/types/badge";
 
 interface BadgeCardProps {
@@ -53,10 +54,12 @@ export const BadgeCard = ({ badge, onClaim, showClaimButton = true, isOwned = fa
         <p className="text-sm text-base-content/60 mb-4 flex-1 line-clamp-3">{badge.description}</p>
 
         {/* Claim Button */}
-        {showClaimButton && !isOwned && onClaim && (
-          <button onClick={() => onClaim(badge.id)} className="btn btn-primary btn-sm w-full">
-            Claim Badge
-          </button>
+        {showClaimButton && !isOwned && (
+          <ClaimButton
+            badgeId={badge.id}
+            badgeName={badge.name}
+            onClaimSuccess={onClaim ? () => onClaim(badge.id) : undefined}
+          />
         )}
 
         {isOwned && <div className="text-center text-sm font-medium text-success">✓ Claimed</div>}
