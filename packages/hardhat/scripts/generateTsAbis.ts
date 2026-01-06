@@ -85,7 +85,6 @@ function getContractDataFromDeployments() {
     let chainId;
     try {
       chainId = fs.readFileSync(`${DEPLOYMENTS_DIR}/${chainName}/.chainId`).toString();
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (error) {
       console.log(`No chainId file found for ${chainName}`);
       continue;

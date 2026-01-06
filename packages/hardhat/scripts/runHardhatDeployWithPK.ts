@@ -48,7 +48,6 @@ async function main() {
     hardhat.on("exit", code => {
       process.exit(code || 0);
     });
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
   } catch (e) {
     console.error("Failed to decrypt private key. Wrong password?");
     process.exit(1);
