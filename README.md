@@ -1,80 +1,313 @@
-# 🏗 Scaffold-ETH 2
+# � ChainBadger
 
-<h4 align="center">
-  <a href="https://docs.scaffoldeth.io">Documentation</a> |
-  <a href="https://scaffoldeth.io">Website</a>
-</h4>
+**On-Chain Achievement Badges for Web3**
 
-🧪 An open-source, up-to-date toolkit for building decentralized applications (dapps) on the Ethereum blockchain. It's designed to make it easier for developers to create and deploy smart contracts and build user interfaces that interact with those contracts.
+ChainBadger is a decentralized achievement badge system that brings verifiable, ownable credentials to web3. Users can mint ERC-1155 badges that prove their skills, participation, and contributions—all stored on-chain and truly portable across platforms.
 
-⚙️ Built using NextJS, RainbowKit, Hardhat, Wagmi, Viem, and Typescript.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Built with Scaffold-ETH 2](https://img.shields.io/badge/Built%20with-Scaffold--ETH%202-orange)](https://scaffoldeth.io)
 
-- ✅ **Contract Hot Reload**: Your frontend auto-adapts to your smart contract as you edit it.
-- 🪝 **[Custom hooks](https://docs.scaffoldeth.io/hooks/)**: Collection of React hooks wrapper around [wagmi](https://wagmi.sh/) to simplify interactions with smart contracts with typescript autocompletion.
-- 🧱 [**Components**](https://docs.scaffoldeth.io/components/): Collection of common web3 components to quickly build your frontend.
-- 🔥 **Burner Wallet & Local Faucet**: Quickly test your application with a burner wallet and local faucet.
-- 🔐 **Integration with Wallet Providers**: Connect to different wallet providers and interact with the Ethereum network.
+## 🎯 **Problem & Solution**
 
-![Debug Contracts tab](https://github.com/scaffold-eth/scaffold-eth-2/assets/55535804/b237af0c-5027-4849-a5c1-2e31495cccb1)
+**The Problem**: Web3 achievements currently live off-chain in Discord roles, screenshots, or centralized platforms. These credentials aren't verifiable, portable, or truly owned by users.
 
-## Requirements
+**The Solution**: ChainBadger creates trustless, on-chain badges that users actually own. Achievements become NFTs that can be verified cryptographically and carried across any platform that supports the standard.
 
-Before you begin, you need to install the following tools:
+## ✨ **Key Features**
 
-- [Node (>= v20.18.3)](https://nodejs.org/en/download/)
-- Yarn ([v1](https://classic.yarnpkg.com/en/docs/install/) or [v2+](https://yarnpkg.com/getting-started/install))
-- [Git](https://git-scm.com/downloads)
+- 🔒 **Trustless & Verifiable**: All badges stored on-chain with cryptographic proof of authenticity
+- 🎯 **Truly Ownable**: ERC-1155 badges that users control in their wallets
+- ⚡ **Gasless Claiming**: EIP-712 signature verification for affordable claims
+- 🎨 **Dynamic Metadata**: Update badge information without redeploying contracts
+- 🔐 **Soulbound Option**: Prevent badge transfers for identity-based use cases
+- 🎮 **Game Integration Ready**: Verify achievements from Steam, Epic Games, and custom games
+- 🛡️ **Replay Protection**: Cryptographic safeguards prevent double-claiming and fraud
 
-## Quickstart
+## 🏗️ **Architecture**
 
-To get started with Scaffold-ETH 2, follow the steps below:
+ChainBadger uses a 3-contract system powered by OpenZeppelin:
 
-1. Install dependencies if it was skipped in CLI:
+1. **BadgeToken** (ERC-1155)
+   - Core NFT contract holding all badge tokens
+   - Role-based access control (MINTER_ROLE, ADMIN_ROLE)
+   - Optional soulbound mode for non-transferable badges
+
+2. **BadgeMinter** (EIP-712 Signatures)
+   - Signature-verified claiming system
+   - Prevents replay attacks with `hasClaimed` mapping
+   - Backend-signed claims for eligibility verification
+
+3. **BadgeMetadata**
+   - Dynamic on-chain metadata storage
+   - Badge rarity system (Common → Legendary)
+   - Category-based organization
+
+### **Badge Claim Flow**
 
 ```
-cd my-dapp-example
+User clicks "Claim Badge"
+    ↓
+Frontend requests signed message from backend API
+    ↓
+Backend verifies eligibility & signs EIP-712 message
+    ↓
+User submits signature to BadgeMinter.claimBadge()
+    ↓
+Contract verifies signature + checks hasClaimed mapping
+    ↓
+BadgeMinter mints badge via BadgeToken (MINTER_ROLE)
+    ↓
+Badge appears in wallet + UI updates
+```
+
+## 🚀 **Quick Start**
+
+### **Prerequisites**
+
+- [Node.js (>= v20.18.3)](https://nodejs.org/en/download/)
+- [Yarn (v1 or v2+)](https://classic.yarnpkg.com/en/docs/install/)
+- [Git](https://git-scm.com/downloads)
+
+### **Installation**
+
+```bash
+# Clone the repository
+git clone https://github.com/ruthlessfish/chain-badger.git
+cd chain-badger
+
+# Install dependencies
 yarn install
 ```
 
-2. Run a local network in the first terminal:
+### **Development Setup**
 
-```
+**Terminal 1 - Start local blockchain:**
+```bash
 yarn chain
 ```
 
-This command starts a local Ethereum network using Hardhat. The network runs on your local machine and can be used for testing and development. You can customize the network configuration in `packages/hardhat/hardhat.config.ts`.
-
-3. On a second terminal, deploy the test contract:
-
-```
+**Terminal 2 - Deploy contracts:**
+```bash
+cd packages/hardhat
 yarn deploy
 ```
 
-This command deploys a test smart contract to the local network. The contract is located in `packages/hardhat/contracts` and can be modified to suit your needs. The `yarn deploy` command uses the deploy script located in `packages/hardhat/deploy` to deploy the contract to the network. You can also customize the deploy script.
+This deploys all 3 contracts and sets up 5 sample badges with metadata.
 
-4. On a third terminal, start your NextJS app:
+**Terminal 3 - Configure backend signer:**
+```bash
+# Display signer info and setup instructions
+yarn hardhat run scripts/displaySignerInfo.ts --network localhost
 
+# Copy the private key to .env.local
+cd ../nextjs
+cp .env.example .env.local
+# Edit .env.local and add:
+# BADGE_SIGNER_PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
 ```
+
+**Terminal 3 - Start frontend:**
+```bash
 yarn start
 ```
 
-Visit your app on: `http://localhost:3000`. You can interact with your smart contract using the `Debug Contracts` page. You can tweak the app config in `packages/nextjs/scaffold.config.ts`.
+Visit http://localhost:3000 and start claiming badges! 🎉
 
-Run smart contract test with `yarn hardhat:test`
+### **Testing**
 
-- Edit your smart contracts in `packages/hardhat/contracts`
-- Edit your frontend homepage at `packages/nextjs/app/page.tsx`. For guidance on [routing](https://nextjs.org/docs/app/building-your-application/routing/defining-routes) and configuring [pages/layouts](https://nextjs.org/docs/app/building-your-application/routing/pages-and-layouts) checkout the Next.js documentation.
-- Edit your deployment scripts in `packages/hardhat/deploy`
+```bash
+# Run smart contract tests
+cd packages/hardhat
+yarn hardhat:test
 
+# All tests include gas reporting and EIP-712 signature verification
+```
 
-## Documentation
+## 📚 **Project Structure**
 
-Visit our [docs](https://docs.scaffoldeth.io) to learn how to start building with Scaffold-ETH 2.
+```
+chain-badger/
+├── packages/
+│   ├── hardhat/                  # Smart contracts & deployment
+│   │   ├── contracts/
+│   │   │   ├── BadgeToken.sol    # ERC-1155 badge NFT
+│   │   │   ├── BadgeMinter.sol   # EIP-712 claim verification
+│   │   │   └── BadgeMetadata.sol # Dynamic metadata storage
+│   │   ├── deploy/               # Deployment scripts (00-05)
+│   │   ├── test/                 # Comprehensive test suite
+│   │   └── scripts/              # Helper scripts
+│   │
+│   └── nextjs/                   # Frontend application
+│       ├── app/
+│       │   ├── page.tsx          # Landing page with badge grid
+│       │   ├── my-badges/        # User's badge collection
+│       │   └── api/
+│       │       ├── sign-claim/   # Backend claim signing
+│       │       └── verify-game-achievement/  # Game integration
+│       ├── components/
+│       │   └── chainbadger/      # Badge UI components
+│       │       ├── BadgeCard.tsx
+│       │       ├── BadgeGrid.tsx
+│       │       ├── ClaimButton.tsx
+│       │       └── OwnedBadgeGrid.tsx
+│       └── hooks/
+│           └── chainbadger/
+│               └── useBadges.ts  # Contract data fetching
+│
+└── internal-docs/                # Detailed documentation
+    ├── 04 Smart Contract Architecture Overview.md
+    ├── 08 Claim Flow Setup.md
+    └── 09 Game Achievement Integration.md
+```
 
-To know more about its features, check out our [website](https://scaffoldeth.io).
+## 🎮 **Use Cases**
 
-## Contributing to Scaffold-ETH 2
+- **Educational Credentials**: Proof of course completion, bootcamp participation
+- **Gaming Achievements**: Verify accomplishments from Steam, Epic Games, custom games
+- **Event Participation**: Proof of attendance at conferences, hackathons, meetups
+- **Community Engagement**: Reward active community members with verifiable status
+- **DAO Contributions**: Recognize governance participation and project contributions
+- **Cross-Platform Identity**: Portable reputation system across multiple platforms
 
-We welcome contributions to Scaffold-ETH 2!
+## 🔧 **Key Technologies**
 
-Please see [CONTRIBUTING.MD](https://github.com/scaffold-eth/scaffold-eth-2/blob/main/CONTRIBUTING.md) for more information and guidelines for contributing to Scaffold-ETH 2.
+- **Frontend**: Next.js 15, React, TypeScript, TailwindCSS, DaisyUI
+- **Smart Contracts**: Solidity 0.8.24, OpenZeppelin (ERC-1155, AccessControl)
+- **Web3 Stack**: Scaffold-ETH 2, RainbowKit, Wagmi, Viem
+- **Development**: Hardhat, Chai, TypeScript
+- **Signature Standard**: EIP-712 (typed structured data)
+
+## 🎨 **Badge Rarity System**
+
+| Rarity | Level | Color | Use Case |
+|--------|-------|-------|----------|
+| 0 | Common | Gray | Basic participation |
+| 1 | Uncommon | Green | Regular engagement |
+| 2 | Rare | Blue | Notable achievements |
+| 3 | Epic | Purple | Major accomplishments |
+| 4 | Legendary | Gold | Exceptional feats |
+
+## 🔐 **Security Features**
+
+- ✅ **EIP-712 Signatures**: Tamper-proof typed data signatures
+- ✅ **Replay Protection**: `hasClaimed` mapping prevents double-claims
+- ✅ **Domain Separation**: Prevents cross-chain signature reuse
+- ✅ **Role-Based Access**: OpenZeppelin AccessControl for permission management
+- ✅ **Custom Errors**: Gas-efficient error handling
+- ✅ **Comprehensive Tests**: 100% coverage of core functionality
+
+## 🛠️ **Development Guide**
+
+### **Creating New Badges**
+
+1. **Via Deployment Script** (`packages/hardhat/deploy/05_setup_badge_metadata.ts`):
+```typescript
+const BADGES = [
+  {
+    id: 6,
+    name: "New Achievement",
+    description: "Earned by doing something awesome",
+    image: "https://api.dicebear.com/7.x/shapes/svg?seed=new-achievement",
+    category: "Custom",
+    rarity: 2, // Rare
+  }
+];
+```
+
+2. **Via Contract Call** (after deployment):
+```typescript
+await badgeMetadata.setBadgeData(
+  badgeId,
+  "Name",
+  "Description",
+  "imageURL",
+  "Category",
+  rarity
+);
+```
+
+### **Integrating Game Achievements**
+
+ChainBadger includes built-in support for verifying achievements from:
+- Steam (via Steam Web API)
+- Epic Games (via Epic Games Services)
+- Custom game backends
+
+See `internal-docs/09 Game Achievement Integration.md` for full implementation guide.
+
+### **Customizing Badge Images**
+
+**Option 1**: Use placeholder services (DiceBear, UI Avatars)
+**Option 2**: Host locally in `packages/nextjs/public/badges/`
+**Option 3**: Upload to IPFS (production recommended)
+
+See deployment script for examples.
+
+## 📖 **Documentation**
+
+- **Smart Contract Architecture**: `internal-docs/04 Smart Contract Architecture Overview.md`
+- **Claim Flow Setup**: `internal-docs/08 Claim Flow Setup.md`
+- **Game Integration**: `internal-docs/09 Game Achievement Integration.md`
+- **Quick Start Guide**: `CLAIM_FLOW_README.md`
+
+## 🧪 **Testing**
+
+Run the comprehensive test suite:
+
+```bash
+cd packages/hardhat
+yarn hardhat:test
+```
+
+**Test Coverage:**
+- ✅ BadgeToken: ERC-1155 compliance, soulbound mode, access control
+- ✅ BadgeMinter: EIP-712 signatures, replay protection, claim validation
+- ✅ BadgeMetadata: Metadata CRUD, batch operations, URI generation
+
+## 🚀 **Deployment**
+
+### **Local (Hardhat)**
+```bash
+yarn deploy
+```
+
+### **Testnet (Sepolia)**
+```bash
+yarn deploy --network sepolia
+```
+
+### **Mainnet**
+```bash
+yarn deploy --network mainnet
+# ⚠️ Ensure proper security audit before mainnet deployment
+```
+
+## 🤝 **Contributing**
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+## 📄 **License**
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 **Acknowledgments**
+
+- Built with [Scaffold-ETH 2](https://scaffoldeth.io)
+- Alchemy University Final Project
+- OpenZeppelin for battle-tested smart contract libraries
+
+## 🔗 **Links**
+
+- **Documentation**: See `internal-docs/` directory
+- **Scaffold-ETH 2**: https://scaffoldeth.io
+- **OpenZeppelin**: https://openzeppelin.com
+
+---
+
+**Made with ❤️ for the web3 community**
