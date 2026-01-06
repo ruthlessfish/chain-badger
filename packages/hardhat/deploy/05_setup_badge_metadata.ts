@@ -24,7 +24,7 @@ const setupBadgeMetadata: DeployFunction = async function (hre: HardhatRuntimeEn
       id: 1,
       name: "Early Adopter",
       description: "One of the first users to try ChainBadger",
-      image: "https://api.chainbadger.com/images/early-adopter.png",
+      image: "https://api.dicebear.com/7.x/shapes/svg?seed=early-adopter&backgroundColor=8b5cf6",
       category: "Community",
       rarity: 2, // Rare
     },
@@ -32,7 +32,7 @@ const setupBadgeMetadata: DeployFunction = async function (hre: HardhatRuntimeEn
       id: 2,
       name: "Smart Contract Master",
       description: "Deployed your first smart contract",
-      image: "https://api.chainbadger.com/images/smart-contract-master.png",
+      image: "https://api.dicebear.com/7.x/shapes/svg?seed=smart-contract&backgroundColor=3b82f6",
       category: "Development",
       rarity: 1, // Uncommon
     },
@@ -40,7 +40,7 @@ const setupBadgeMetadata: DeployFunction = async function (hre: HardhatRuntimeEn
       id: 3,
       name: "Chain Explorer",
       description: "Interacted with 5 different blockchain networks",
-      image: "https://api.chainbadger.com/images/chain-explorer.png",
+      image: "https://api.dicebear.com/7.x/shapes/svg?seed=chain-explorer&backgroundColor=10b981",
       category: "Exploration",
       rarity: 0, // Common
     },
@@ -48,7 +48,7 @@ const setupBadgeMetadata: DeployFunction = async function (hre: HardhatRuntimeEn
       id: 4,
       name: "Transaction Pro",
       description: "Executed 100 successful transactions",
-      image: "https://api.chainbadger.com/images/transaction-pro.png",
+      image: "https://api.dicebear.com/7.x/shapes/svg?seed=transaction-pro&backgroundColor=f59e0b",
       category: "Activity",
       rarity: 3, // Epic
     },
@@ -56,7 +56,7 @@ const setupBadgeMetadata: DeployFunction = async function (hre: HardhatRuntimeEn
       id: 5,
       name: "Badge Collector",
       description: "Collected all available badges",
-      image: "https://api.chainbadger.com/images/badge-collector.png",
+      image: "https://api.dicebear.com/7.x/shapes/svg?seed=badge-collector&backgroundColor=ef4444",
       category: "Achievement",
       rarity: 4, // Legendary
     },
