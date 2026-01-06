@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import type { NextPage } from "next";
 import { useAccount } from "wagmi";
 import { BadgeGrid } from "~~/components/chainbadger";
@@ -12,9 +13,10 @@ const Home: NextPage = () => {
       <div className="flex items-center flex-col grow pt-10">
         {/* Hero Section */}
         <div className="px-5 max-w-5xl mx-auto text-center mb-12">
-          <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-            ChainBadger
-          </h1>
+          <div className="flex items-center justify-center gap-2">
+            <Image src="/logo-250.png" alt="ChainBadger Logo" width={250} height={250} />
+            <Image src="/wordmark.png" alt="ChainBadger Wordmark" width={300} height={100} className="wordmark" />
+          </div>
           <p className="text-2xl mb-2 text-base-content/80">On-Chain Achievement Badges</p>
           <p className="text-lg text-base-content/60 max-w-2xl mx-auto">
             Mint verifiable, ownable badges that prove your skills, participation, and contributions. Your achievements,

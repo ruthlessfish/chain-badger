@@ -24,7 +24,7 @@ const setupBadgeMetadata: DeployFunction = async function (hre: HardhatRuntimeEn
       id: 1,
       name: "Early Adopter",
       description: "One of the first users to try ChainBadger",
-      image: "https://api.dicebear.com/7.x/shapes/svg?seed=early-adopter&backgroundColor=8b5cf6",
+      image: "https://chainbadger.vercel.app/badges/batch-g12.png",
       category: "Community",
       rarity: 2, // Rare
     },
@@ -32,7 +32,7 @@ const setupBadgeMetadata: DeployFunction = async function (hre: HardhatRuntimeEn
       id: 2,
       name: "Smart Contract Master",
       description: "Deployed your first smart contract",
-      image: "https://api.dicebear.com/7.x/shapes/svg?seed=smart-contract&backgroundColor=3b82f6",
+      image: "https://chainbadger.vercel.app/badges/batch-g14.png",
       category: "Development",
       rarity: 1, // Uncommon
     },
@@ -40,7 +40,7 @@ const setupBadgeMetadata: DeployFunction = async function (hre: HardhatRuntimeEn
       id: 3,
       name: "Chain Explorer",
       description: "Interacted with 5 different blockchain networks",
-      image: "https://api.dicebear.com/7.x/shapes/svg?seed=chain-explorer&backgroundColor=10b981",
+      image: "https://chainbadger.vercel.app/badges/batch-g3.png",
       category: "Exploration",
       rarity: 0, // Common
     },
@@ -48,7 +48,7 @@ const setupBadgeMetadata: DeployFunction = async function (hre: HardhatRuntimeEn
       id: 4,
       name: "Transaction Pro",
       description: "Executed 100 successful transactions",
-      image: "https://api.dicebear.com/7.x/shapes/svg?seed=transaction-pro&backgroundColor=f59e0b",
+      image: "https://chainbadger.vercel.app/badges/batch-g20.png",
       category: "Activity",
       rarity: 3, // Epic
     },
@@ -56,7 +56,7 @@ const setupBadgeMetadata: DeployFunction = async function (hre: HardhatRuntimeEn
       id: 5,
       name: "Badge Collector",
       description: "Collected all available badges",
-      image: "https://api.dicebear.com/7.x/shapes/svg?seed=badge-collector&backgroundColor=ef4444",
+      image: "https://chainbadger.vercel.app/badges/batch-g7.png",
       category: "Achievement",
       rarity: 4, // Legendary
     },
