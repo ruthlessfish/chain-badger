@@ -44,20 +44,22 @@ ChainBadger uses a 3-contract system powered by OpenZeppelin:
 
 ### **Badge Claim Flow**
 
-```
-User clicks "Claim Badge"
-    ↓
-Frontend requests signed message from backend API
-    ↓
-Backend verifies eligibility & signs EIP-712 message
-    ↓
-User submits signature to BadgeMinter.claimBadge()
-    ↓
-Contract verifies signature + checks hasClaimed mapping
-    ↓
-BadgeMinter mints badge via BadgeToken (MINTER_ROLE)
-    ↓
-Badge appears in wallet + UI updates
+```mermaid  
+flowchart TD
+    A[User clicks 'Claim Badge'] --> B[Frontend requests signed message from backend API]
+    B --> C[Backend verifies eligibility & signs EIP-712 message]
+    C --> D[User submits signature to BadgeMinter.claimBadge]
+    D --> E{Contract verifies signature + checks hasClaimed mapping}
+    E -->|Valid & Not Claimed| F[BadgeMinter mints badge via BadgeToken MINTER_ROLE]
+    E -->|Invalid or Already Claimed| G[Transaction Reverts]
+    F --> H[Badge appears in wallet + UI updates]
+    G --> I[Error shown to user]
+    
+    style A fill:#4ade80
+    style H fill:#4ade80
+    style G fill:#ef4444
+    style I fill:#ef4444
+    style E fill:#fbbf24
 ```
 
 ## 🚀 **Quick Start**
