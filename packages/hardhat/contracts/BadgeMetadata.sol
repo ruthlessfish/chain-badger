@@ -72,7 +72,7 @@ contract BadgeMetadata is Ownable {
     /**
      * @notice Initialize the BadgeMetadata contract
      * @param initialOwner Address that will own the contract
-     * @param _baseURI Base URI for metadata (e.g., "https://api.chainbadger.com/metadata/")
+     * @param _baseURI Base URI for metadata (e.g., "https://chain-badger.vercel.app/metadata/")
      */
     constructor(address initialOwner, string memory _baseURI) 
         Ownable(initialOwner) 

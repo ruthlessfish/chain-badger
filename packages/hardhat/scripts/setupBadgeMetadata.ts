@@ -19,7 +19,7 @@ const BADGES = [
     id: 1,
     name: "Early Adopter",
     description: "One of the first users to try ChainBadger",
-    image: "https://api.chainbadger.com/images/early-adopter.png",
+    image: "https://chain-badger.vercel.app/images/early-adopter.png",
     category: "Community",
     rarity: 2, // Rare
   },
@@ -27,7 +27,7 @@ const BADGES = [
     id: 2,
     name: "Smart Contract Master",
     description: "Deployed your first smart contract",
-    image: "https://api.chainbadger.com/images/smart-contract-master.png",
+    image: "https://chain-badger.vercel.app/images/smart-contract-master.png",
     category: "Development",
     rarity: 1, // Uncommon
   },
@@ -35,7 +35,7 @@ const BADGES = [
     id: 3,
     name: "Chain Explorer",
     description: "Interacted with 5 different blockchain networks",
-    image: "https://api.chainbadger.com/images/chain-explorer.png",
+    image: "https://chain-badger.vercel.app/images/chain-explorer.png",
     category: "Exploration",
     rarity: 0, // Common
   },
@@ -43,7 +43,7 @@ const BADGES = [
     id: 4,
     name: "Transaction Pro",
     description: "Executed 100 successful transactions",
-    image: "https://api.chainbadger.com/images/transaction-pro.png",
+    image: "https://chain-badger.vercel.app/images/transaction-pro.png",
     category: "Activity",
     rarity: 3, // Epic
   },
@@ -51,7 +51,7 @@ const BADGES = [
     id: 5,
     name: "Badge Collector",
     description: "Collected all available badges",
-    image: "https://api.chainbadger.com/images/badge-collector.png",
+    image: "https://chain-badger.vercel.app/images/badge-collector.png",
     category: "Achievement",
     rarity: 4, // Legendary
   },

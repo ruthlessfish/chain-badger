@@ -22,7 +22,7 @@ const deployBadgeMetadata: DeployFunction = async function (hre: HardhatRuntimeE
   console.log("👤 Initial owner:", initialOwner);
 
   // Base URI for generating token URIs
-  const baseURI = "https://api.chainbadger.com/metadata/";
+  const baseURI = "https://chain-badger.vercel.app/metadata/";
 
   const deployment = await deploy(CONTRACT_NAME, {
     from: deployer,

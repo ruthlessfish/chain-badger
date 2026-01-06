@@ -6,8 +6,9 @@ import "~~/styles/globals.css";
 import { getMetadata } from "~~/utils/scaffold-eth/getMetadata";
 
 export const metadata = getMetadata({
-  title: "Scaffold-ETH 2 App",
-  description: "Built with 🏗 Scaffold-ETH 2",
+  title: "On-Chain Achievement Badges | ChainBadger",
+  description:
+    "Mint verifiable, ownable badges that prove your skills, participation, and contributions. Your achievements, truly yours.",
 });
 
 const ScaffoldEthApp = ({ children }: { children: React.ReactNode }) => {

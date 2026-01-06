@@ -10,7 +10,7 @@ describe("BadgeToken", function () {
   let user1: SignerWithAddress;
   let user2: SignerWithAddress;
 
-  const BASE_URI = "https://api.chainbadger.com/metadata/";
+  const BASE_URI = "https://chain-badger.vercel.app/metadata/";
   const BADGE_ID_1 = 1;
   const BADGE_ID_2 = 2;
 

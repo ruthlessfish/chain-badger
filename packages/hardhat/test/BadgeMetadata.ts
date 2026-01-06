@@ -8,7 +8,7 @@ describe("BadgeMetadata", function () {
   let owner: SignerWithAddress;
   let user1: SignerWithAddress;
 
-  const BASE_URI = "https://api.chainbadger.com/metadata/";
+  const BASE_URI = "https://chain-badger.vercel.app/metadata/";
   const BADGE_ID_1 = 1;
   const BADGE_ID_2 = 2;
   const BADGE_ID_3 = 3;
@@ -169,13 +169,13 @@ describe("BadgeMetadata", function () {
 
   describe("Base URI Management", function () {
     it("Should allow owner to update base URI", async function () {
-      const newURI = "https://newapi.chainbadger.com/";
+      const newURI = "https://newchain-badger.vercel.app/";
       await badgeMetadata.setBaseURI(newURI);
       expect(await badgeMetadata.baseURI()).to.equal(newURI);
     });
 
     it("Should emit BaseURIUpdated event", async function () {
-      const newURI = "https://newapi.chainbadger.com/";
+      const newURI = "https://newchain-badger.vercel.app/";
       await expect(badgeMetadata.setBaseURI(newURI)).to.emit(badgeMetadata, "BaseURIUpdated").withArgs(newURI);
     });
 

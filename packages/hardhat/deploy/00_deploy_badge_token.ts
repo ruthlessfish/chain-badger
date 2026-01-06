@@ -17,7 +17,7 @@ const deployBadgeToken: DeployFunction = async function (hre: HardhatRuntimeEnvi
 
   // Base URI for badge metadata
   // This can be updated later via setBadgeURI() for individual badges
-  const baseURI = "https://api.chainbadger.com/metadata/";
+  const baseURI = "https://chain-badger.vercel.app/metadata/";
 
   const deployment = await deploy(CONTRACT_NAME, {
     from: deployer,

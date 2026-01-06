@@ -13,7 +13,7 @@ describe("BadgeMinter", function () {
   let user2: SignerWithAddress;
   let newSigner: SignerWithAddress;
 
-  const BASE_URI = "https://api.chainbadger.com/metadata/";
+  const BASE_URI = "https://chain-badger.vercel.app/metadata/";
   const BADGE_ID_1 = 1;
   const BADGE_ID_2 = 2;
 
