@@ -15,7 +15,7 @@ type HeaderMenuLink = {
   icon?: React.ReactNode;
 };
 
-export const menuLinks: HeaderMenuLink[] = [
+const allMenuLinks: HeaderMenuLink[] = [
   {
     label: "Home",
     href: "/",
@@ -30,6 +30,13 @@ export const menuLinks: HeaderMenuLink[] = [
     icon: <BugAntIcon className="h-4 w-4" />,
   },
 ];
+
+// Filter out debug link if debug routes are disabled
+// Note: NEXT_PUBLIC_ prefix needed for client-side access
+const isDebugEnabled = process.env.NEXT_PUBLIC_ENABLE_DEBUG_ROUTES === "true";
+export const menuLinks: HeaderMenuLink[] = isDebugEnabled
+  ? allMenuLinks
+  : allMenuLinks.filter(link => link.href !== "/debug");
 
 export const HeaderMenuLinks = () => {
   const pathname = usePathname();
