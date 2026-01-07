@@ -17,7 +17,7 @@ export const BadgeCard = ({ badge, onClaim, showClaimButton = true, isOwned = fa
   return (
     <div
       className={`
-        relative bg-base-200 rounded-xl overflow-hidden
+        relative bg-base-secondary rounded-xl overflow-hidden
         border-2 ${rarityStyle.border}
         shadow-lg hover:shadow-xl ${rarityStyle.glow}
         transition-all duration-200 hover:scale-105
@@ -25,12 +25,8 @@ export const BadgeCard = ({ badge, onClaim, showClaimButton = true, isOwned = fa
       `}
     >
       {/* Badge Image */}
-      <div className="relative aspect-square bg-base-300 flex items-center justify-center">
-        {badge.image ? (
-          <img src={badge.image} alt={badge.name} className="w-full h-full object-cover" />
-        ) : (
-          <div className="text-6xl">🏆</div>
-        )}
+      <div className="relative aspect-square bg-base-secondary flex items-center justify-center">
+        {badge.image ? <img src={badge.image} alt={badge.name} /> : <div className="text-6xl">🏆</div>}
 
         {/* Rarity Badge */}
         <div
