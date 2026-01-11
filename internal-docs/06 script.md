@@ -1,18 +1,5 @@
-Absolutely, Shane — here is a **fully polished, downloadable‑style script** for your entire 5‑minute Alchemy University submission video. It’s written as a single continuous narrative you can read straight through while screen‑sharing your slides and demo.
-
-It’s tight, confident, and paced to fit comfortably within 5 minutes.
-
-You can copy/paste this into a doc and download it from your side.
-
----
-
-# 🎥 **Full 5‑Minute Video Script (Final Version)**  
-*(Slide cues included so you know when to advance.)*
-
----
-
 ## **Slide 1 — Title**
-**“Hey everyone, I’m Shane, and this is my Alchemy University final project: an On‑Chain Achievement Badge System. It’s a full‑stack web3 application that lets users mint verifiable achievement badges directly on an EVM chain.”**
+**“Hey everyone, I’m Shane, and this is my Alchemy University final project: ChainBadger - an On‑Chain Achievement Badge System. It’s a full‑stack web3 application that lets users mint verifiable achievement badges directly on an EVM chain.”**
 
 ---
 
@@ -57,18 +44,18 @@ This separation keeps the system clean, secure, and easy to extend.”**
 
 ## **Slide 9 — Demo**
 **“Now I’ll walk through the demo.  
-First, I connect my wallet.  
+``First, I connect my wallet.
 Next, I select a badge and click ‘Claim.’  
 The app requests a signature from the backend, submits it to the contract, and waits for confirmation.  
 Once the transaction completes, the badge appears in my wallet and in the UI.  
-I can also open the transaction on the block explorer to verify that the badge was minted on‑chain.”**
+I can also open the transaction on the block explorer to verify that the badge was minted on‑chain.”**``
 
 *(Here you perform the live demo.)*
 
 ---
 
 ## **Slide 10 — Tech Stack**
-**“The project uses Solidity for the smart contracts, Hardhat or Foundry for testing, Next.js for the front‑end, Wagmi and Viem for contract interaction, and TailwindCSS for styling. Everything is deployed to a public testnet.”**
+**“The project uses Solidity for the smart contracts, Hardhat for testing, Next.js for the front‑end, Wagmi and Viem for contract interaction, and TailwindCSS for styling. Everything is deployed to the Sepolia testnet.”**
 
 ---
 
@@ -78,15 +65,6 @@ I can also open the transaction on the block explorer to verify that the badge w
 ---
 
 ## **Slide 12 — Closing**
-**“Thanks for watching. This was my On‑Chain Achievement Badge System. All code, contracts, and deployment details are available in the GitHub repository. I appreciate your time, and now I’ll move on to the demo.”**
+**“Thanks for watching. This was ChainBadger - The On‑Chain Achievement Badge System. All code, contracts, and deployment details are available in the GitHub repository. I appreciate your time, and I’m happy to answer any questions.”**
 
 ---
-
-# ⭐ If you want, I can also create:
-- A **shorter 3‑minute version**  
-- A **more energetic/hype delivery version**  
-- A **teleprompter‑formatted version**  
-- A **PDF‑style script layout**  
-- A **slide‑by‑slide speaker notes version**
-
-Just tell me what format you want next.

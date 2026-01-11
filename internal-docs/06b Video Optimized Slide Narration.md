@@ -1,9 +1,9 @@
-# 🎥 **Video‑Optimized Slide Narration**
+# ## **Slide 1 — Title**
+**“Hey everyone, welcome to ChainBadger: The On‑Chain Achievement Badge System."**
 
----
+**"I’m Shane, and this is my Alchemy University final project. It’s a full‑stack web3 app that lets users mint verifiable badges directly on an EVM chain."**
 
-## **Slide 1 — Title**
-**“Hey everyone, I’m Shane, and this is my Alchemy University final project: an On‑Chain Achievement Badge System. It’s a full‑stack web3 app that lets users mint verifiable badges directly on an EVM chain.”**
+**After the presentation, I’ll walk you through a live demo and show the full flow: connecting a wallet, claiming a badge, watching the transaction confirm, and seeing the badge appear on‑chain."**
 
 ---
 
@@ -42,11 +42,6 @@
 
 ---
 
-## **Slide 9 — Demo**
-**“In the demo, I’ll show the full flow: connecting a wallet, claiming a badge, watching the transaction confirm, and seeing the badge appear on‑chain. You’ll also see the badge metadata and the testnet transaction on the block explorer.”**
-
----
-
 ## **Slide 10 — Tech Stack**
 **“The project uses Solidity, Hardhat or Foundry for testing, Next.js for the front‑end, Wagmi and Viem for contract interaction, and TailwindCSS for styling. Everything is deployed to a public testnet.”**
 
@@ -57,17 +52,21 @@
 
 ---
 
-## **Slide 12 — Closing**
-**“Thanks for watching. This was my On‑Chain Achievement Badge System. All code, contracts, and deployment details are available in the GitHub repo. Now let’s jump into the live demo.”**
+## **Slide 12 - Demo **
+"Now let’s jump into the live demo."
 
 ---
 
-# ⭐ Want me to generate the actual slide text next?
-I can create:
+## **Slide 13 — Closing**
+**“Thanks for watching. This was ChainBadge: The On‑Chain Achievement Badge System. All code, contracts, and deployment details are available in the GitHub repo”**
 
-- **Slide‑ready text blocks**  
-- **A branded slide theme**  
-- **A version with speaker notes**  
-- **A shorter or more energetic delivery style**
+---
 
-Just tell me what you want to refine.
+## **Demo**
+
+- First, I connect my wallet.
+- Next, I select a badge and click ‘Claim.’
+- The app requests a signature from the backend, submits it to the contract, and waits for confirmation.
+- Once the transaction completes, the badge appears in my wallet and in the UI.
+- I can also open the transaction on the block explorer to verify that the badge was minted on‑chain.”`
+
