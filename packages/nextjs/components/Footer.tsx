@@ -58,6 +58,7 @@ export const Footer = () => {
               >
                 <span className="link">Scaffold-Eth 2</span>
               </a>
+              <p>Badges designed by <a href="https://www.freepik.com" title-"Freepik">Freepik</a></p>
             </div>
           </div>
         </ul>
