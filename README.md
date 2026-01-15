@@ -1,3 +1,5 @@
+https://github.com/user-attachments/assets/fdebddc1-494f-4cbf-80c1-25b2b37c5ddd
+
 # � ChainBadger
 
 **On-Chain Achievement Badges for Web3**
