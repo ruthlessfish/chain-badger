@@ -195,6 +195,7 @@ Utility exists for smart contract wallet deployment via `deployWithAA()` using A
 - Admin panel for badge creation
 
 ### 🎯 Planned Features
+- Badge template system for user-generated badge types
 - Backend API for signature generation
 - Badge rarity tiers and categories
 - Leaderboard/achievements page
@@ -212,5 +213,5 @@ Utility exists for smart contract wallet deployment via `deployWithAA()` using A
 
 ## Additional Context
 - See `.cursor/rules/scaffold-eth.mdc` for detailed Scaffold-ETH 2 patterns
-- See `internal-docs/` for original project vision and UI wireframes (pre-Scaffold-ETH migration)
-- Project is an Alchemy University final project demonstrating on-chain credential systems
+- See `internal-docs/MVP` for original project vision and UI wireframes (pre-Scaffold-ETH migration)
+- See `internal-docs` for ongoing design docs, development plans, and architectural decisions

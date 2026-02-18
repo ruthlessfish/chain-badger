@@ -1,3 +1,4 @@
+# ChainBadger MVP Full Code Outline
 ## On‑Chain Achievement Badge System
 
 ## 🧱 **1. Contracts Folder Structure**

@@ -95,11 +95,10 @@ See [`internal-docs/08 Claim Flow Setup.md`](../internal-docs/08%20Claim%20Flow%
 
 ## 🚀 Next Steps
 
-1. **Add Real Metadata**: Connect to BadgeMetadata contract
-2. **Show Owned Badges**: Query BadgeToken balances
+1. ~~**Add Real Metadata**: Connect to BadgeMetadata contract~~ ✅
+2. ~~**Show Owned Badges**: Query BadgeToken balances~~ ✅
 3. **Add Badge Modal**: Detailed badge view before claiming
-4. **Create Admin Panel**: Manage badges and signers
-5. **Add Eligibility Logic**: Control who can claim what
+4. **Badge Template System**: User-generated badge types with eligibility rules — see `internal-docs/11 Badge Template Development Plan.md`
 
 ---
 

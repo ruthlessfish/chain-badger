@@ -6,4 +6,4 @@
 [x] the UI wireframe
 [x] full slide deck outline
 [x] the demo script
-[ ] even the full code outline
+[x] even the full code outline

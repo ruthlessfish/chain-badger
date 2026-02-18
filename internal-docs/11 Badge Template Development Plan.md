@@ -73,25 +73,25 @@ BadgeToken (ERC-1155)  ←──MINTER_ROLE──  BadgeMinter (EIP-712, extende
 
 ### 2.2 Extending BadgeMinter vs. New Minter Contract
 
-**Decision: Extend `BadgeMinter.sol` with a new function.**
+**Decision: Extend `BadgeMinter.sol` — replace the claim path with template-aware claiming.**
 
-- Add `claimTemplateBadge(uint256 templateId, bytes signature)` alongside existing `claimBadge()`
-- Add a new EIP-712 typehash: `TemplateClaim(address user,uint256 templateId)`
-- Existing `claimBadge()` remains **untouched** — full backward compatibility
+Since all badges are now user-generated via templates, the existing `claimBadge(badgeId, signature)` function is no longer needed. It will be replaced by `claimTemplateBadge(templateId, deadline, signature)` as the sole claim path.
+
+- Remove `claimBadge()` and `CLAIM_TYPEHASH` (no admin badges to claim)
+- Add `claimTemplateBadge(uint256 templateId, uint256 deadline, bytes signature)`
+- Add EIP-712 typehash: `TemplateClaim(address user, uint256 templateId, uint256 deadline)`
 - BadgeMinter gets a reference to BadgeTemplate (new state variable + setter)
 
-*Why not a separate minter?* Two minters both needing `MINTER_ROLE` adds operational complexity with no architectural benefit. A single minter with two claim paths is simpler.
+*Why not a separate minter?* Two minters both needing `MINTER_ROLE` adds operational complexity with no architectural benefit. A single minter is simpler.
 
 ### 2.3 Badge ID Assignment Strategy
 
-**Decision: Auto-increment from a reserved range.**
+**Decision: Auto-increment starting from 1.**
 
-- Existing admin badges: IDs `1–999` (admin-managed, current system)
-- Template badges: IDs `1000+` (auto-assigned by `BadgeTemplate`)
-- `BadgeTemplate` maintains a `nextBadgeId` counter starting at `1000`
+- All badges are user-generated via templates — no reserved admin range
+- `BadgeTemplate` maintains a `nextBadgeId` counter starting at `1`
 - On `createTemplate()`, the contract assigns `badgeId = nextBadgeId++`
-
-This avoids ID collisions and makes the system self-managing.
+- IDs are sequential and never reused
 
 ### 2.4 Requirements Enforcement Strategy
 
@@ -106,11 +106,12 @@ This avoids ID collisions and makes the system self-managing.
 
 ### 2.5 Template Metadata Approach
 
-**Decision: Templates store their own `metadataURI` independently from `BadgeMetadata`.**
+**Decision: Templates store their own `metadataURI` — `BadgeMetadata` becomes optional.**
 
-- Template creators set metadata at creation time
-- `BadgeMetadata` can optionally be updated by admin for template badges (for rarity/category indexing)
-- Frontend reads metadata from `BadgeTemplate` for template badges, `BadgeMetadata` for admin badges
+- Template creators set metadata at creation time via `metadataURI`
+- `BadgeMetadata` contract remains deployed but is no longer seeded with data
+- `BadgeMetadata` can optionally be used for on-chain rarity/category indexing if needed later
+- Frontend reads metadata exclusively from `BadgeTemplate`
 
 ### 2.6 Template Versioning
 
@@ -194,10 +195,9 @@ struct BadgeTemplateData {
 
 mapping(uint256 => BadgeTemplateData) public templates;      // templateId → data
 mapping(uint256 => uint256) public templateClaimCount;        // templateId → total claims
-uint256 public nextTemplateId;                               // Auto-increment
-uint256 public nextBadgeId;                                  // Starts at 1000
+uint256 public nextTemplateId;                               // Auto-increment (starts at 0)
+uint256 public nextBadgeId;                                  // Auto-increment (starts at 1)
 
-uint256 public constant TEMPLATE_BADGE_ID_START = 1000;
 uint8 public constant CURRENT_TEMPLATE_VERSION = 1;
 ```
 
@@ -273,11 +273,11 @@ Each `createTemplate()` call pushes the new templateId to `_creatorTemplates[msg
 
 ---
 
-### 3.2 Modifications to `BadgeMinter.sol`
+### 3.2 Rewrite of `BadgeMinter.sol`
 
-**All changes are additive — existing functions untouched.**
+The existing `claimBadge()` and `CLAIM_TYPEHASH` are removed. `claimTemplateBadge()` becomes the sole claim path. The constructor, signer management, and `hasClaimed` mapping remain.
 
-#### New State Variables
+#### Updated State Variables
 
 ```solidity
 import "./BadgeTemplate.sol";
@@ -290,9 +290,15 @@ bytes32 private constant TEMPLATE_CLAIM_TYPEHASH =
     keccak256("TemplateClaim(address user,uint256 templateId,uint256 deadline)");
 ```
 
-> **Why add `deadline`?** The existing `Claim` typehash is simple because admin badges are low-risk. Template claims are user-generated and public — a signature without an expiry could be hoarded and submitted much later (after conditions change). A `deadline` (unix timestamp) lets the backend issue short-lived signatures (e.g., 10 minutes). The `chainId` and `verifyingContract` are already in the EIP-712 domain separator, so they don't need to be in the struct.
+**Removed:**
+- `CLAIM_TYPEHASH` — no longer needed (was `Claim(address user,uint256 badgeId)`)
+- `claimBadge()` — replaced by `claimTemplateBadge()`
+- `_verifySignature()` — replaced by template-aware verification
+- `getClaimDigest()` — replaced by `getTemplateClaimDigest()`
 
-#### New Functions
+> **Why add `deadline`?** Template claims are user-generated and public — a signature without an expiry could be hoarded and submitted after conditions change. A `deadline` (unix timestamp) lets the backend issue short-lived signatures (e.g., 10 minutes). The `chainId` and `verifyingContract` are already in the EIP-712 domain separator, so they don't need to be in the struct.
+
+#### Functions
 
 ##### `claimTemplateBadge(uint256 templateId, uint256 deadline, bytes calldata signature)`
 
@@ -323,14 +329,16 @@ bytes32 private constant TEMPLATE_CLAIM_TYPEHASH =
 - View function for frontend signing
 - Returns `_hashTypedDataV4(keccak256(abi.encode(TEMPLATE_CLAIM_TYPEHASH, user, templateId, deadline)))`
 
-#### New Events
+#### Events
 
 ```solidity
 event TemplateBadgeClaimed(address indexed user, uint256 indexed templateId, uint256 indexed badgeId);
 event BadgeTemplateUpdated(address indexed templateAddress);
 ```
 
-#### New Errors
+> **Note**: The existing `BadgeClaimed` and `SignerUpdated` events are retained.
+
+#### Errors
 
 ```solidity
 error TemplateNotFound();
@@ -340,14 +348,16 @@ error SignatureExpired();
 error SupplyCapReached();
 ```
 
+> **Note**: The existing `AlreadyClaimed`, `InvalidSignature`, and `InvalidAddress` errors are retained.
+
 ---
 
 ### 3.3 No Changes Required
 
 | Contract | Changes? | Reason |
 |----------|----------|--------|
-| `BadgeToken.sol` | ❌ None | Already supports arbitrary badge IDs via `mint()`. Template badges (1000+) work out of the box. |
-| `BadgeMetadata.sol` | ❌ None | Admin can optionally set metadata for template badges. Templates carry their own `metadataURI`. |
+| `BadgeToken.sol` | ❌ None | Already supports arbitrary badge IDs via `mint()`. Works out of the box. |
+| `BadgeMetadata.sol` | ❌ None | Stays deployed but unseeded. Available for optional on-chain indexing later. |
 
 ---
 
@@ -549,15 +559,16 @@ await writeContractAsync({
 
 #### Home Page (`/`)
 
-Add a "Community Badges" section below the existing admin badge grid:
-- Show latest 4–6 community-created templates
+Replace the existing `<BadgeGrid />` (which shows hardcoded badges 1–5) with `<TemplateGrid />`:
+- Show latest community-created templates
+- "Create a Badge →" CTA for template creation
 - "View All →" link to `/templates`
 
 #### My Badges (`/my-badges`)
 
-- Existing `<OwnedBadgeGrid />` already works for template badges (they're just ERC-1155 tokens with IDs ≥ 1000)
-- Add a visual indicator for community-created vs. admin badges
-- Add "Created by [address]" attribution for template badges
+- Rewrite `<OwnedBadgeGrid />` to discover owned badges via `TemplateBadgeClaimed` events (filtered by connected user) rather than hardcoded IDs
+- Show "Created by [address]" attribution for each badge
+- Link each badge back to its template detail page
 
 ### 6.3 New Hooks
 
@@ -658,27 +669,28 @@ type TemplateStatus = "claimable" | "paused" | "sold-out" | "archived";
 
 | Test Group | Cases |
 |-----------|-------|
-| **Deployment** | Initial state, nextTemplateId = 0, nextBadgeId = 1000, CURRENT_TEMPLATE_VERSION = 1 |
+| **Deployment** | Initial state, nextTemplateId = 0, nextBadgeId = 1, CURRENT_TEMPLATE_VERSION = 1 |
 | **Template Creation** | Anyone can create, auto-assigns IDs, emits enriched `TemplateCreated` (metadataURI, requirementsHash, maxClaims, templateVersion), stores all fields correctly, multiple creators, `requirementsHash` matches `keccak256(requirements)`, `templateVersion` matches `CURRENT_TEMPLATE_VERSION` |
 | **Supply Caps** | `maxClaims = 0` means unlimited, `maxClaims = 100` stored correctly, `isTemplateClaimable()` returns false when cap reached, `getTemplateClaimCount()` tracks correctly |
 | **Template Management** | Creator can deactivate/reactivate, non-creator reverts with `NotTemplateCreator`, update requirements recalculates `requirementsHash`, update metadata URI, all management functions revert on archived templates |
 | **Archiving** | Creator can archive, archived template cannot be reactivated (`TemplateArchived` error), archived template cannot be updated, `isTemplateArchived()` returns correct state, `isTemplateClaimable()` returns false for archived |
 | **View Functions** | `getTemplate()` returns correct data, `getTemplatesByCreator()` returns all templates, `isTemplateActive()` returns `active && !archived`, `templateExists()`, `isTemplateClaimable()` checks active + archived + supply cap, non-existent template reverts |
-| **Badge ID Assignment** | First template gets badgeId 1000, sequential assignment, IDs never reused |
+| **Badge ID Assignment** | First template gets badgeId 1, sequential assignment, IDs never reused |
 | **Claim Count** | `incrementClaimCount()` only callable by authorized minter, increments correctly, emits `TemplateClaimCountIncremented`, non-authorized caller reverts |
 | **Edge Cases** | Empty metadata URI reverts, very large requirements bytes, template at ID 0, `maxClaims = 1` (one-of-one) |
 
-#### `test/BadgeMinter.ts` (extend existing)
+#### `test/BadgeMinter.ts` (rewrite)
 
 | Test Group | Cases |
 |-----------|-------|
+| **Deployment** | Correct BadgeToken address, signer, owner; reverts on zero addresses |
 | **Template Integration** | `setBadgeTemplate()` by owner, non-owner reverts, zero address reverts |
 | **Template Claiming** | Valid signature mints correct badgeId, emits `TemplateBadgeClaimed`, marks `hasClaimed`, replay protection, increments `templateClaimCount` on BadgeTemplate |
 | **Signature Deadlines** | Accepts signature before deadline, rejects expired signature (`SignatureExpired`), deadline of 0 rejects immediately, deadline far in the future works |
 | **Supply Caps** | Claim succeeds under cap, reverts with `SupplyCapReached` when cap hit, unlimited (`maxClaims = 0`) never reverts for supply, one-of-one (`maxClaims = 1`) allows exactly one claim |
 | **Template Validation** | Reverts if template not found, reverts if template not active, reverts if template is archived, reverts if BadgeTemplate not set |
-| **Backward Compatibility** | Existing `claimBadge()` still works, existing signatures still valid, no interference between claim paths |
 | **EIP-712 Template Signatures** | Correct typehash includes deadline, correct digest, rejects wrong templateId, rejects wrong user, rejects wrong deadline |
+| **Admin Functions** | Owner can update signer, emits `SignerUpdated`, non-owner can't update, zero address reverts |
 
 ### 7.2 API Route Tests
 
@@ -703,46 +715,47 @@ curl -X POST http://localhost:3000/api/sign-template-claim \
 
 ---
 
-## 8. Migration & Backward Compatibility
+## 8. Pre-Work Cleanup
 
-### What Stays the Same
+Before starting template development, remove the legacy admin-badge scaffolding. All badges will be user-generated via templates — there is no admin badge range.
 
-| Component | Status |
-|-----------|--------|
-| `BadgeToken.sol` | ✅ Unchanged — arbitrary badge IDs already supported |
-| `BadgeMetadata.sol` | ✅ Unchanged — admin can optionally add metadata for template badges |
-| `claimBadge()` in BadgeMinter | ✅ Unchanged — existing flow preserved |
-| `/api/sign-claim` | ✅ Unchanged — existing admin badge signing preserved |
-| Badges 1–5 | ✅ Unchanged — continue working with existing IDs |
-| `useBadges` hook | ✅ Unchanged — still reads badges 1–5 |
+### Files to Delete
 
-### What Changes
+| File | Reason |
+|------|--------|
+| `packages/hardhat/deploy/05_setup_badge_metadata.ts` | Seeds badges 1–5. No longer needed. |
+| `packages/nextjs/app/api/sign-claim/route.ts` | Signs admin badge claims. Replaced by `/api/sign-template-claim`. |
+| `packages/nextjs/app/api/verify-game-achievement/route.ts` | Mock game verification for admin badges. Can be re-added as a template requirement type later. |
 
-| Component | Change | Risk |
-|-----------|--------|------|
-| `BadgeMinter.sol` | Add template functions | **Medium** — requires redeployment. `MINTER_ROLE` must be re-granted. Existing `hasClaimed` state is lost (users who claimed badges 1–5 can claim again). |
-| Deploy scripts | Add scripts 06, 07 | **Low** — additive only |
-| Frontend | Add pages + components | **Low** — additive only |
-| API routes | Add new routes | **Low** — additive only |
+### Files to Gut / Rewrite
 
-### Migration Steps
+| File | Change |
+|------|--------|
+| `packages/nextjs/hooks/chainbadger/useBadges.ts` | Currently hardcodes reads for badge IDs 1–5. Replace with `useTemplates` hook (Phase 4). Delete this file. |
+| `packages/nextjs/components/chainbadger/BadgeGrid.tsx` | Renders hardcoded badges from `useBadges`. Replace with `TemplateGrid`. Delete this file. |
+| `packages/nextjs/components/chainbadger/BadgeCard.tsx` | Tied to admin badge data shape. Replace with `TemplateCard`. Delete this file. |
+| `packages/nextjs/components/chainbadger/ClaimButton.tsx` | Calls `/api/sign-claim`. Replace with `TemplateClaimButton`. Delete this file. |
+| `packages/nextjs/app/page.tsx` | Rewrite to show template grid instead of hardcoded `<BadgeGrid />`. |
+| `packages/nextjs/app/my-badges/page.tsx` | Rewrite `<OwnedBadgeGrid />` to query badges by template ownership. |
+| `packages/hardhat/contracts/BadgeMinter.sol` | Remove `claimBadge()` + `CLAIM_TYPEHASH`. Replace with `claimTemplateBadge()`. |
+| `packages/hardhat/test/BadgeMinter.ts` | Remove tests for `claimBadge()`. Replace with `claimTemplateBadge()` tests. |
 
-1. Deploy new `BadgeMinter` with template support
-2. Grant `MINTER_ROLE` to new BadgeMinter on BadgeToken
-3. **Revoke** `MINTER_ROLE` from old BadgeMinter (prevents dual minting)
-4. Deploy `BadgeTemplate`
-5. Call `setBadgeTemplate()` on new BadgeMinter
-6. Update frontend to point to new contract addresses (automatic via `deployedContracts.ts`)
+### Contracts That Stay As-Is
 
-### hasClaimed State Migration
+| Contract | Status |
+|----------|--------|
+| `BadgeToken.sol` | ✅ No changes — already supports arbitrary badge IDs |
+| `BadgeMetadata.sol` | ✅ No changes — stays deployed but unseeded. Available for optional on-chain indexing later. |
 
-On redeployment, the `hasClaimed` mapping resets. For a local dev / testnet environment this is acceptable. For mainnet, options:
+### Deployment Scripts That Stay
 
-- **Option A**: Accept the reset (users can re-claim, but backend can reject via API)
-- **Option B**: Add a migration function that batch-sets `hasClaimed` for known claimers (read events from old contract)
-- **Option C**: Deploy BadgeMinter as upgradeable (UUPS) to preserve state
-
-**Recommendation**: Option A for MVP/testnet. Option C for mainnet.
+| Script | Status |
+|--------|--------|
+| `00_deploy_badge_token.ts` | ✅ Keep |
+| `01_deploy_badge_minter.ts` | ✅ Keep (deploys updated BadgeMinter) |
+| `02_deploy_badge_metadata.ts` | ✅ Keep (contract still useful, just not seeded) |
+| `03_setup_roles.ts` | ✅ Keep (grants MINTER_ROLE) |
+| `04_deployment_summary.ts` | ✅ Keep (update to include BadgeTemplate info) |
 
 ---
 
@@ -783,11 +796,25 @@ On redeployment, the `hasClaimed` mapping resets. For a local dev / testnet envi
 
 | File | Changes | Phase |
 |------|---------|-------|
-| `packages/hardhat/contracts/BadgeMinter.sol` | Add template claiming functions + state | 1 |
-| `packages/nextjs/types/badge.ts` | Add `Requirements`, `BadgeTemplate`, `EligibilityCheck` types | 3 |
-| `packages/nextjs/app/page.tsx` | Add "Community Badges" section | 4 |
-| `packages/nextjs/app/my-badges/page.tsx` | Add template badge attribution | 4 |
+| `packages/hardhat/contracts/BadgeMinter.sol` | Remove `claimBadge()`, add `claimTemplateBadge()` + template state | 1 |
+| `packages/hardhat/test/BadgeMinter.ts` | Replace `claimBadge` tests with `claimTemplateBadge` tests | 5 |
+| `packages/hardhat/deploy/04_deployment_summary.ts` | Add BadgeTemplate to summary output | 2 |
+| `packages/nextjs/types/badge.ts` | Add `Requirements`, `BadgeTemplate`, `EligibilityCheck`, `TemplateStatus` types | 3 |
+| `packages/nextjs/app/page.tsx` | Replace `<BadgeGrid />` with `<TemplateGrid />` | 4 |
+| `packages/nextjs/app/my-badges/page.tsx` | Rewrite to use template-aware badge ownership | 4 |
 | `packages/nextjs/components/Header.tsx` | Add nav links for `/templates`, `/create-template` | 4 |
+
+### Files to Delete (Phase 0 — Pre-Work Cleanup)
+
+| File | Reason |
+|------|--------|
+| `packages/hardhat/deploy/05_setup_badge_metadata.ts` | Seeded admin badges 1–5 |
+| `packages/nextjs/app/api/sign-claim/route.ts` | Admin badge signing (replaced by `/api/sign-template-claim`) |
+| `packages/nextjs/app/api/verify-game-achievement/route.ts` | Mock game verification for admin badges |
+| `packages/nextjs/hooks/chainbadger/useBadges.ts` | Hardcoded reads for badges 1–5 (replaced by `useTemplates`) |
+| `packages/nextjs/components/chainbadger/BadgeGrid.tsx` | Hardcoded admin badge grid (replaced by `TemplateGrid`) |
+| `packages/nextjs/components/chainbadger/BadgeCard.tsx` | Admin badge card (replaced by `TemplateCard`) |
+| `packages/nextjs/components/chainbadger/ClaimButton.tsx` | Admin claim flow (replaced by `TemplateClaimButton`) |
 
 ---
 
@@ -796,16 +823,24 @@ On redeployment, the `hasClaimed` mapping resets. For a local dev / testnet envi
 ### Implementation Order
 
 ```
+Phase 0 (Cleanup) ───────────────────────────────────────────
+  │
+  ├─ 0a. Delete 05_setup_badge_metadata.ts
+  ├─ 0b. Delete /api/sign-claim, /api/verify-game-achievement
+  ├─ 0c. Delete useBadges, BadgeGrid, BadgeCard, ClaimButton
+  ├─ 0d. Stub out page.tsx and my-badges/page.tsx (remove broken imports)
+  │
 Phase 1 ─────────────────────────────────────────────────────
   │
   ├─ 1a. Write BadgeTemplate.sol
-  ├─ 1b. Extend BadgeMinter.sol (depends on 1a for import)
+  ├─ 1b. Rewrite BadgeMinter.sol (remove claimBadge, add claimTemplateBadge)
   │
 Phase 2 ─────────────────────────────────────────────────────
   │
   ├─ 2a. Write 06_deploy_badge_template.ts
   ├─ 2b. Write 07_setup_template_roles.ts (depends on 2a)
-  ├─ 2c. Run yarn deploy — verify all contracts deploy correctly
+  ├─ 2c. Update 04_deployment_summary.ts
+  ├─ 2d. Run yarn deploy — verify all contracts deploy correctly
   │
 Phase 3 ─────────────────────────────────────────────────────
   │
@@ -820,12 +855,13 @@ Phase 4 ────────────────────────
   ├─ 4b. Write template components (depends on 4a)
   ├─ 4c. Write /create-template page (depends on 4a, 4b)
   ├─ 4d. Write /templates page + [templateId] detail (depends on 4a, 4b)
-  ├─ 4e. Update home page, my-badges, Header nav
+  ├─ 4e. Rewrite home page + my-badges with template components
+  ├─ 4f. Update Header nav
   │
 Phase 5 ─────────────────────────────────────────────────────
   │
   ├─ 5a. Write BadgeTemplate.ts tests
-  ├─ 5b. Extend BadgeMinter.ts tests (template claiming)
+  ├─ 5b. Rewrite BadgeMinter.ts tests (claimTemplateBadge only)
   ├─ 5c. Integration test: full create → claim flow on local node
   └─ 5d. Frontend smoke test: create template → browse → claim → view in my-badges
 ```
@@ -834,12 +870,13 @@ Phase 5 ────────────────────────
 
 | Phase | Scope | Estimate |
 |-------|-------|----------|
+| Phase 0 | Cleanup (delete legacy files, stub pages) | 0.5 day |
 | Phase 1 | Smart contracts | 1–2 days |
 | Phase 2 | Deployment scripts | 0.5 day |
 | Phase 3 | Backend API + utilities | 1 day |
 | Phase 4 | Frontend pages + components | 3–4 days |
 | Phase 5 | Testing | 2–3 days |
-| **Total** | | **~8–10 days** |
+| **Total** | | **~8–11 days** |
 
 ### Critical Path
 
@@ -885,19 +922,16 @@ const [token, minBalance, minXP, mustFollowCreator] = new AbiCoder().decode(
 
 ## Appendix B: EIP-712 Type Definitions
 
-### Existing (unchanged)
-```
-Claim(address user, uint256 badgeId)
-```
-
-### New (template claims)
+### Claim Type (template claims)
 ```
 TemplateClaim(address user, uint256 templateId, uint256 deadline)
 ```
 
 The `deadline` field is a unix timestamp. The backend sets it to `now + SIGNATURE_TTL_SECONDS` (default: 600 = 10 minutes). The contract checks `block.timestamp <= deadline` before processing the claim.
 
-Both types share the same domain:
+> **Note**: The previous `Claim(address user, uint256 badgeId)` typehash is removed. All claims now go through `TemplateClaim`.
+
+Domain:
 ```json
 {
   "name": "BadgeMinter",
