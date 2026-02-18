@@ -17,6 +17,13 @@ const deploymentSummary: DeployFunction = async function (hre: HardhatRuntimeEnv
       // Optional
     }
 
+    let badgeTemplateDeployment;
+    try {
+      badgeTemplateDeployment = await hre.deployments.get("BadgeTemplate");
+    } catch {
+      // Optional
+    }
+
     const provider = hre.ethers.provider;
     const network = await provider.getNetwork();
 
@@ -30,6 +37,9 @@ const deploymentSummary: DeployFunction = async function (hre: HardhatRuntimeEnv
     if (badgeMetadataDeployment) {
       console.log(`   BadgeMetadata: ${badgeMetadataDeployment.address}`);
     }
+    if (badgeTemplateDeployment) {
+      console.log(`   BadgeTemplate: ${badgeTemplateDeployment.address}`);
+    }
 
     const badgeToken = await hre.ethers.getContractAt("BadgeToken", badgeTokenDeployment.address);
     const badgeMinter = await hre.ethers.getContractAt("BadgeMinter", badgeMinterDeployment.address);
@@ -38,16 +48,34 @@ const deploymentSummary: DeployFunction = async function (hre: HardhatRuntimeEnv
     const hasRole = await badgeToken.hasRole(MINTER_ROLE, badgeMinterDeployment.address);
 
     console.log("\nPermissions:");
-    console.log(`   MINTER_ROLE: ${hasRole ? "YES" : "NO"}`);
+    console.log(`   MINTER_ROLE granted to BadgeMinter: ${hasRole ? "YES" : "NO"}`);
 
     const owner = await badgeMinter.owner();
     console.log(`   Owner: ${owner}`);
 
+    if (badgeTemplateDeployment) {
+      try {
+        const badgeMinterAny = badgeMinter as any;
+        const linkedTemplate = await badgeMinterAny.badgeTemplate();
+        const templateLinked = linkedTemplate.toLowerCase() === badgeTemplateDeployment.address.toLowerCase();
+        console.log(`   BadgeMinter → BadgeTemplate linked: ${templateLinked ? "YES" : "NO"}`);
+
+        const badgeTemplate = await hre.ethers.getContractAt("BadgeTemplate", badgeTemplateDeployment.address);
+        const authorizedMinter = await badgeTemplate.authorizedMinter();
+        const minterAuthorized = authorizedMinter.toLowerCase() === badgeMinterDeployment.address.toLowerCase();
+        console.log(`   BadgeTemplate → authorizedMinter set: ${minterAuthorized ? "YES" : "NO"}`);
+        console.log(`   Next Template ID: ${(await badgeTemplate.nextTemplateId()).toString()}`);
+        console.log(`   Next Badge ID:    ${(await badgeTemplate.nextBadgeId()).toString()}`);
+      } catch {
+        console.log("   (BadgeTemplate link info unavailable — run 07_setup_template_roles)");
+      }
+    }
+
     console.log("\nNext Steps:");
-    console.log("   1. Run 'yarn generate' to update frontend");
-    console.log("   2. Configure backend signer for EIP-712");
-    console.log("   3. Add badge metadata (optional)");
-    console.log("   4. Test claiming a badge");
+    console.log("   1. Run 'yarn generate' to update frontend TypeScript types");
+    console.log("   2. Configure SIGNER_PRIVATE_KEY in packages/nextjs/.env.local");
+    console.log("   3. Create badge templates via /create-template");
+    console.log("   4. Test claiming a template badge");
 
     console.log("\n" + "=".repeat(60));
     console.log("Happy badging!");
