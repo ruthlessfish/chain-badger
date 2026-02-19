@@ -1,12 +1,14 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { BadgeToken, BadgeMinter } from "../typechain-types";
+import { BadgeToken, BadgeMinter, BadgeTemplate } from "../typechain-types";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { TypedDataDomain, TypedDataField } from "ethers";
+import { time } from "@nomicfoundation/hardhat-network-helpers";
 
 describe("BadgeMinter", function () {
   let badgeToken: BadgeToken;
   let badgeMinter: BadgeMinter;
+  let badgeTemplate: BadgeTemplate;
   let owner: SignerWithAddress;
   let signer: SignerWithAddress;
   let user1: SignerWithAddress;
@@ -14,34 +16,69 @@ describe("BadgeMinter", function () {
   let newSigner: SignerWithAddress;
 
   const BASE_URI = "https://chain-badger.vercel.app/metadata/";
-  const BADGE_ID_1 = 1;
-  const BADGE_ID_2 = 2;
+  const METADATA_URI = "ipfs://QmBadge1";
 
-  // EIP-712 Domain and Types
+  // Helper: ABI-encode minimal requirements bytes
+  const encodeRequirements = (token = ethers.ZeroAddress, minBalance = 0n, minXP = 0n, mustFollowCreator = false) =>
+    ethers.AbiCoder.defaultAbiCoder().encode(
+      ["address", "uint256", "uint256", "bool"],
+      [token, minBalance, minXP, mustFollowCreator],
+    );
+
+  const EMPTY_REQUIREMENTS = encodeRequirements();
+
+  // EIP-712 Domain and Types for TemplateClaim
   let domain: TypedDataDomain;
-  const types: Record<string, TypedDataField[]> = {
-    Claim: [
+  const templateClaimTypes: Record<string, TypedDataField[]> = {
+    TemplateClaim: [
       { name: "user", type: "address" },
-      { name: "badgeId", type: "uint256" },
+      { name: "templateId", type: "uint256" },
+      { name: "deadline", type: "uint256" },
     ],
+  };
+
+  // Helper: create a future deadline relative to the current chain timestamp
+  const futureDeadline = async () => BigInt((await time.latest()) + 600);
+
+  // Helper: sign a TemplateClaim EIP-712 message
+  const signTemplateClaim = async (
+    signerAccount: SignerWithAddress,
+    user: string,
+    templateId: bigint,
+    deadline: bigint,
+  ) => {
+    const message = { user, templateId, deadline };
+    return signerAccount.signTypedData(domain, templateClaimTypes, message);
   };
 
   beforeEach(async function () {
     [owner, signer, user1, user2, newSigner] = await ethers.getSigners();
 
     // Deploy BadgeToken
-    const BadgeToken = await ethers.getContractFactory("BadgeToken");
-    badgeToken = await BadgeToken.deploy(BASE_URI);
+    const BadgeTokenFactory = await ethers.getContractFactory("BadgeToken");
+    badgeToken = await BadgeTokenFactory.deploy(BASE_URI);
     await badgeToken.waitForDeployment();
 
+    // Deploy BadgeTemplate
+    const BadgeTemplateFactory = await ethers.getContractFactory("BadgeTemplate");
+    badgeTemplate = await BadgeTemplateFactory.deploy(owner.address);
+    await badgeTemplate.waitForDeployment();
+
     // Deploy BadgeMinter
-    const BadgeMinter = await ethers.getContractFactory("BadgeMinter");
-    badgeMinter = await BadgeMinter.deploy(await badgeToken.getAddress(), signer.address, owner.address);
+    const BadgeMinterFactory = await ethers.getContractFactory("BadgeMinter");
+    badgeMinter = await BadgeMinterFactory.deploy(await badgeToken.getAddress(), signer.address, owner.address);
     await badgeMinter.waitForDeployment();
 
-    // Grant MINTER_ROLE to BadgeMinter contract
+    // Grant MINTER_ROLE to BadgeMinter
     const MINTER_ROLE = await badgeToken.MINTER_ROLE();
     await badgeToken.grantRole(MINTER_ROLE, await badgeMinter.getAddress());
+
+    // Link BadgeMinter ↔ BadgeTemplate
+    await badgeMinter.connect(owner).setBadgeTemplate(await badgeTemplate.getAddress());
+    await badgeTemplate.connect(owner).setAuthorizedMinter(await badgeMinter.getAddress());
+
+    // Create a template (templateId = 0, badgeId = 1)
+    await badgeTemplate.connect(user1).createTemplate(METADATA_URI, EMPTY_REQUIREMENTS, 0n);
 
     // Setup EIP-712 domain
     domain = {
@@ -52,13 +89,17 @@ describe("BadgeMinter", function () {
     };
   });
 
+  // ---------------------------------------------------------------------------
+  // Deployment
+  // ---------------------------------------------------------------------------
+
   describe("Deployment", function () {
     it("Should set the correct BadgeToken address", async function () {
       expect(await badgeMinter.badgeToken()).to.equal(await badgeToken.getAddress());
     });
 
     it("Should set the correct signer address", async function () {
-      expect(await badgeMinter.signer()).to.equal(signer.address);
+      expect(await badgeMinter.getFunction("signer")()).to.equal(signer.address);
     });
 
     it("Should set the correct owner", async function () {
@@ -66,345 +107,541 @@ describe("BadgeMinter", function () {
     });
 
     it("Should revert if BadgeToken address is zero", async function () {
-      const BadgeMinter = await ethers.getContractFactory("BadgeMinter");
-      await expect(BadgeMinter.deploy(ethers.ZeroAddress, signer.address, owner.address)).to.be.revertedWithCustomError(
-        badgeMinter,
-        "InvalidAddress",
-      );
+      const BadgeMinterFactory = await ethers.getContractFactory("BadgeMinter");
+      await expect(
+        BadgeMinterFactory.deploy(ethers.ZeroAddress, signer.address, owner.address),
+      ).to.be.revertedWithCustomError(badgeMinter, "InvalidAddress");
     });
 
     it("Should revert if signer address is zero", async function () {
-      const BadgeMinter = await ethers.getContractFactory("BadgeMinter");
+      const BadgeMinterFactory = await ethers.getContractFactory("BadgeMinter");
       await expect(
-        BadgeMinter.deploy(await badgeToken.getAddress(), ethers.ZeroAddress, owner.address),
+        BadgeMinterFactory.deploy(await badgeToken.getAddress(), ethers.ZeroAddress, owner.address),
       ).to.be.revertedWithCustomError(badgeMinter, "InvalidAddress");
     });
-  });
 
-  describe("EIP-712 Signature Verification", function () {
-    it("Should generate correct domain separator", async function () {
-      const domainSeparator = await badgeMinter.getDomainSeparator();
-      expect(domainSeparator).to.match(/^0x[a-fA-F0-9]{64}$/); // 32 bytes hex string
-    });
-
-    it("Should generate correct claim digest", async function () {
-      const digest = await badgeMinter.getClaimDigest(user1.address, BADGE_ID_1);
-      expect(digest).to.match(/^0x[a-fA-F0-9]{64}$/); // 32 bytes hex string
-    });
-
-    it("Should accept valid signature from authorized signer", async function () {
-      const message = {
-        user: user1.address,
-        badgeId: BADGE_ID_1,
-      };
-
-      const signature = await signer.signTypedData(domain, types, message);
-
-      await expect(badgeMinter.connect(user1).claimBadge(BADGE_ID_1, signature))
-        .to.emit(badgeMinter, "BadgeClaimed")
-        .withArgs(user1.address, BADGE_ID_1);
-    });
-
-    it("Should reject signature from unauthorized signer", async function () {
-      const message = {
-        user: user1.address,
-        badgeId: BADGE_ID_1,
-      };
-
-      // Sign with user2 instead of authorized signer
-      const signature = await user2.signTypedData(domain, types, message);
-
-      await expect(badgeMinter.connect(user1).claimBadge(BADGE_ID_1, signature)).to.be.revertedWithCustomError(
-        badgeMinter,
-        "InvalidSignature",
-      );
-    });
-
-    it("Should reject signature for wrong user", async function () {
-      const message = {
-        user: user2.address, // Signature for user2
-        badgeId: BADGE_ID_1,
-      };
-
-      const signature = await signer.signTypedData(domain, types, message);
-
-      // user1 tries to use user2's signature
-      await expect(badgeMinter.connect(user1).claimBadge(BADGE_ID_1, signature)).to.be.revertedWithCustomError(
-        badgeMinter,
-        "InvalidSignature",
-      );
-    });
-
-    it("Should reject signature for wrong badge ID", async function () {
-      const message = {
-        user: user1.address,
-        badgeId: BADGE_ID_2, // Signature for badge 2
-      };
-
-      const signature = await signer.signTypedData(domain, types, message);
-
-      // user1 tries to claim badge 1 with badge 2 signature
-      await expect(badgeMinter.connect(user1).claimBadge(BADGE_ID_1, signature)).to.be.revertedWithCustomError(
-        badgeMinter,
-        "InvalidSignature",
-      );
-    });
-
-    it("Should reject malformed signature", async function () {
-      const invalidSignature = "0x1234";
-
-      await expect(badgeMinter.connect(user1).claimBadge(BADGE_ID_1, invalidSignature)).to.be.reverted;
+    it("Should start with BadgeTemplate address unset when freshly deployed", async function () {
+      const BadgeMinterFactory = await ethers.getContractFactory("BadgeMinter");
+      const freshMinter = await BadgeMinterFactory.deploy(await badgeToken.getAddress(), signer.address, owner.address);
+      await freshMinter.waitForDeployment();
+      expect(await freshMinter.badgeTemplate()).to.equal(ethers.ZeroAddress);
     });
   });
 
-  describe("Badge Claiming", function () {
-    async function getSignature(user: string, badgeId: number) {
-      const message = { user, badgeId };
-      return await signer.signTypedData(domain, types, message);
-    }
+  // ---------------------------------------------------------------------------
+  // Template Integration (setBadgeTemplate)
+  // ---------------------------------------------------------------------------
 
-    it("Should mint badge to user upon successful claim", async function () {
-      const signature = await getSignature(user1.address, BADGE_ID_1);
-
-      await badgeMinter.connect(user1).claimBadge(BADGE_ID_1, signature);
-
-      expect(await badgeToken.balanceOf(user1.address, BADGE_ID_1)).to.equal(1);
+  describe("Template Integration", function () {
+    it("Should allow owner to set BadgeTemplate reference", async function () {
+      expect(await badgeMinter.badgeTemplate()).to.equal(await badgeTemplate.getAddress());
     });
 
-    it("Should mark badge as claimed", async function () {
-      const signature = await getSignature(user1.address, BADGE_ID_1);
-
-      await badgeMinter.connect(user1).claimBadge(BADGE_ID_1, signature);
-
-      const claimed = await badgeMinter.hasClaimed(user1.address, BADGE_ID_1);
-      void expect(claimed).to.be.true;
+    it("Should emit BadgeTemplateUpdated event", async function () {
+      const BadgeMinterFactory = await ethers.getContractFactory("BadgeMinter");
+      const freshMinter = await BadgeMinterFactory.deploy(await badgeToken.getAddress(), signer.address, owner.address);
+      await freshMinter.waitForDeployment();
+      await expect(freshMinter.connect(owner).setBadgeTemplate(await badgeTemplate.getAddress()))
+        .to.emit(freshMinter, "BadgeTemplateUpdated")
+        .withArgs(await badgeTemplate.getAddress());
     });
 
-    it("Should emit BadgeClaimed event", async function () {
-      const signature = await getSignature(user1.address, BADGE_ID_1);
-
-      await expect(badgeMinter.connect(user1).claimBadge(BADGE_ID_1, signature))
-        .to.emit(badgeMinter, "BadgeClaimed")
-        .withArgs(user1.address, BADGE_ID_1);
+    it("Should revert when non-owner tries to set BadgeTemplate", async function () {
+      await expect(
+        badgeMinter.connect(user1).setBadgeTemplate(await badgeTemplate.getAddress()),
+      ).to.be.revertedWithCustomError(badgeMinter, "OwnableUnauthorizedAccount");
     });
 
-    it("Should allow different users to claim same badge", async function () {
-      const sig1 = await getSignature(user1.address, BADGE_ID_1);
-      const sig2 = await getSignature(user2.address, BADGE_ID_1);
-
-      await badgeMinter.connect(user1).claimBadge(BADGE_ID_1, sig1);
-      await badgeMinter.connect(user2).claimBadge(BADGE_ID_1, sig2);
-
-      expect(await badgeToken.balanceOf(user1.address, BADGE_ID_1)).to.equal(1);
-      expect(await badgeToken.balanceOf(user2.address, BADGE_ID_1)).to.equal(1);
-    });
-
-    it("Should allow same user to claim different badges", async function () {
-      const sig1 = await getSignature(user1.address, BADGE_ID_1);
-      const sig2 = await getSignature(user1.address, BADGE_ID_2);
-
-      await badgeMinter.connect(user1).claimBadge(BADGE_ID_1, sig1);
-      await badgeMinter.connect(user1).claimBadge(BADGE_ID_2, sig2);
-
-      expect(await badgeToken.balanceOf(user1.address, BADGE_ID_1)).to.equal(1);
-      expect(await badgeToken.balanceOf(user1.address, BADGE_ID_2)).to.equal(1);
-    });
-  });
-
-  describe("Replay Protection", function () {
-    async function getSignature(user: string, badgeId: number) {
-      const message = { user, badgeId };
-      return await signer.signTypedData(domain, types, message);
-    }
-
-    it("Should prevent claiming same badge twice with same signature", async function () {
-      const signature = await getSignature(user1.address, BADGE_ID_1);
-
-      await badgeMinter.connect(user1).claimBadge(BADGE_ID_1, signature);
-
-      await expect(badgeMinter.connect(user1).claimBadge(BADGE_ID_1, signature)).to.be.revertedWithCustomError(
-        badgeMinter,
-        "AlreadyClaimed",
-      );
-    });
-
-    it("Should prevent claiming even with new signature", async function () {
-      const signature1 = await getSignature(user1.address, BADGE_ID_1);
-      const signature2 = await getSignature(user1.address, BADGE_ID_1);
-
-      await badgeMinter.connect(user1).claimBadge(BADGE_ID_1, signature1);
-
-      // Even with a fresh signature, should be blocked
-      await expect(badgeMinter.connect(user1).claimBadge(BADGE_ID_1, signature2)).to.be.revertedWithCustomError(
-        badgeMinter,
-        "AlreadyClaimed",
-      );
-    });
-
-    it("Should track claims independently per badge", async function () {
-      const sig1 = await getSignature(user1.address, BADGE_ID_1);
-      const sig2 = await getSignature(user1.address, BADGE_ID_2);
-
-      await badgeMinter.connect(user1).claimBadge(BADGE_ID_1, sig1);
-
-      const claimed1 = await badgeMinter.hasClaimed(user1.address, BADGE_ID_1);
-      let claimed2 = await badgeMinter.hasClaimed(user1.address, BADGE_ID_2);
-      void expect(claimed1).to.be.true;
-      void expect(claimed2).to.be.false;
-
-      // Can still claim badge 2
-      await badgeMinter.connect(user1).claimBadge(BADGE_ID_2, sig2);
-      claimed2 = await badgeMinter.hasClaimed(user1.address, BADGE_ID_2);
-      void expect(claimed2).to.be.true;
-    });
-
-    it("Should track claims independently per user", async function () {
-      const sig1 = await getSignature(user1.address, BADGE_ID_1);
-      const sig2 = await getSignature(user2.address, BADGE_ID_1);
-
-      await badgeMinter.connect(user1).claimBadge(BADGE_ID_1, sig1);
-
-      const claimed1 = await badgeMinter.hasClaimed(user1.address, BADGE_ID_1);
-      let claimed2 = await badgeMinter.hasClaimed(user2.address, BADGE_ID_1);
-      void expect(claimed1).to.be.true;
-      void expect(claimed2).to.be.false;
-
-      // user2 can still claim the same badge
-      await badgeMinter.connect(user2).claimBadge(BADGE_ID_1, sig2);
-      claimed2 = await badgeMinter.hasClaimed(user2.address, BADGE_ID_1);
-      void expect(claimed2).to.be.true;
-    });
-  });
-
-  describe("Admin Functions", function () {
-    it("Should allow owner to update signer", async function () {
-      await badgeMinter.setSigner(newSigner.address);
-      expect(await badgeMinter.signer()).to.equal(newSigner.address);
-    });
-
-    it("Should emit SignerUpdated event", async function () {
-      await expect(badgeMinter.setSigner(newSigner.address))
-        .to.emit(badgeMinter, "SignerUpdated")
-        .withArgs(signer.address, newSigner.address);
-    });
-
-    it("Should reject signature from old signer after update", async function () {
-      const message = {
-        user: user1.address,
-        badgeId: BADGE_ID_1,
-      };
-
-      const oldSignature = await signer.signTypedData(domain, types, message);
-
-      await badgeMinter.setSigner(newSigner.address);
-
-      await expect(badgeMinter.connect(user1).claimBadge(BADGE_ID_1, oldSignature)).to.be.revertedWithCustomError(
-        badgeMinter,
-        "InvalidSignature",
-      );
-    });
-
-    it("Should accept signature from new signer after update", async function () {
-      await badgeMinter.setSigner(newSigner.address);
-
-      const message = {
-        user: user1.address,
-        badgeId: BADGE_ID_1,
-      };
-
-      const newSignature = await newSigner.signTypedData(domain, types, message);
-
-      await expect(badgeMinter.connect(user1).claimBadge(BADGE_ID_1, newSignature))
-        .to.emit(badgeMinter, "BadgeClaimed")
-        .withArgs(user1.address, BADGE_ID_1);
-    });
-
-    it("Should prevent non-owner from updating signer", async function () {
-      await expect(badgeMinter.connect(user1).setSigner(newSigner.address)).to.be.revertedWithCustomError(
-        badgeMinter,
-        "OwnableUnauthorizedAccount",
-      );
-    });
-
-    it("Should revert when setting signer to zero address", async function () {
-      await expect(badgeMinter.setSigner(ethers.ZeroAddress)).to.be.revertedWithCustomError(
+    it("Should revert when setting BadgeTemplate to zero address", async function () {
+      await expect(badgeMinter.connect(owner).setBadgeTemplate(ethers.ZeroAddress)).to.be.revertedWithCustomError(
         badgeMinter,
         "InvalidAddress",
       );
     });
   });
 
-  describe("Helper Functions", function () {
-    it("Should correctly report claim status via hasUserClaimedBadge", async function () {
-      let claimed = await badgeMinter.hasUserClaimedBadge(user1.address, BADGE_ID_1);
-      void expect(claimed).to.be.false;
+  // ---------------------------------------------------------------------------
+  // Template Claiming — Happy Path
+  // ---------------------------------------------------------------------------
 
-      const message = {
-        user: user1.address,
-        badgeId: BADGE_ID_1,
-      };
-      const signature = await signer.signTypedData(domain, types, message);
-      await badgeMinter.connect(user1).claimBadge(BADGE_ID_1, signature);
+  describe("Template Claiming", function () {
+    it("Should mint the correct badge to the user", async function () {
+      const deadline = await futureDeadline();
+      const signature = await signTemplateClaim(signer, user1.address, 0n, deadline);
 
-      claimed = await badgeMinter.hasUserClaimedBadge(user1.address, BADGE_ID_1);
-      void expect(claimed).to.be.true;
+      await badgeMinter.connect(user1).claimTemplateBadge(0n, deadline, signature);
+
+      // templateId 0 → badgeId 1
+      expect(await badgeToken.balanceOf(user1.address, 1n)).to.equal(1n);
     });
 
-    it("Should return false for unclaimed badges", async function () {
-      const claimed1 = await badgeMinter.hasUserClaimedBadge(user1.address, BADGE_ID_1);
-      const claimed2 = await badgeMinter.hasUserClaimedBadge(user1.address, BADGE_ID_2);
-      void expect(claimed1).to.be.false;
-      void expect(claimed2).to.be.false;
+    it("Should emit BadgeClaimed event", async function () {
+      const deadline = await futureDeadline();
+      const signature = await signTemplateClaim(signer, user1.address, 0n, deadline);
+
+      await expect(badgeMinter.connect(user1).claimTemplateBadge(0n, deadline, signature))
+        .to.emit(badgeMinter, "BadgeClaimed")
+        .withArgs(user1.address, 1n);
+    });
+
+    it("Should emit TemplateBadgeClaimed event", async function () {
+      const deadline = await futureDeadline();
+      const signature = await signTemplateClaim(signer, user1.address, 0n, deadline);
+
+      await expect(badgeMinter.connect(user1).claimTemplateBadge(0n, deadline, signature))
+        .to.emit(badgeMinter, "TemplateBadgeClaimed")
+        .withArgs(user1.address, 0n, 1n);
+    });
+
+    it("Should mark the badge as claimed for the user", async function () {
+      const deadline = await futureDeadline();
+      const signature = await signTemplateClaim(signer, user1.address, 0n, deadline);
+
+      await badgeMinter.connect(user1).claimTemplateBadge(0n, deadline, signature);
+
+      expect(await badgeMinter.hasClaimed(user1.address, 1n)).to.be.true;
+    });
+
+    it("Should increment templateClaimCount on BadgeTemplate", async function () {
+      const deadline = await futureDeadline();
+      const signature = await signTemplateClaim(signer, user1.address, 0n, deadline);
+
+      await badgeMinter.connect(user1).claimTemplateBadge(0n, deadline, signature);
+
+      expect(await badgeTemplate.getTemplateClaimCount(0n)).to.equal(1n);
+    });
+
+    it("Should allow different users to claim the same template badge", async function () {
+      const deadline = await futureDeadline();
+      const sig1 = await signTemplateClaim(signer, user1.address, 0n, deadline);
+      const sig2 = await signTemplateClaim(signer, user2.address, 0n, deadline);
+
+      await badgeMinter.connect(user1).claimTemplateBadge(0n, deadline, sig1);
+      await badgeMinter.connect(user2).claimTemplateBadge(0n, deadline, sig2);
+
+      expect(await badgeToken.balanceOf(user1.address, 1n)).to.equal(1n);
+      expect(await badgeToken.balanceOf(user2.address, 1n)).to.equal(1n);
+      expect(await badgeTemplate.getTemplateClaimCount(0n)).to.equal(2n);
     });
   });
 
-  describe("Integration with BadgeToken", function () {
-    async function getSignature(user: string, badgeId: number) {
-      const message = { user, badgeId };
-      return await signer.signTypedData(domain, types, message);
-    }
+  // ---------------------------------------------------------------------------
+  // Replay Protection
+  // ---------------------------------------------------------------------------
 
-    it("Should fail if BadgeMinter doesn't have MINTER_ROLE", async function () {
-      // Deploy new BadgeToken without granting role
-      const BadgeToken = await ethers.getContractFactory("BadgeToken");
-      const newBadgeToken = await BadgeToken.deploy(BASE_URI);
-      await newBadgeToken.waitForDeployment();
+  describe("Replay Protection", function () {
+    it("Should prevent claiming the same badge twice with the same signature", async function () {
+      const deadline = await futureDeadline();
+      const signature = await signTemplateClaim(signer, user1.address, 0n, deadline);
 
-      const BadgeMinter = await ethers.getContractFactory("BadgeMinter");
-      const newBadgeMinter = await BadgeMinter.deploy(await newBadgeToken.getAddress(), signer.address, owner.address);
-      await newBadgeMinter.waitForDeployment();
+      await badgeMinter.connect(user1).claimTemplateBadge(0n, deadline, signature);
 
-      const newDomain = {
+      await expect(
+        badgeMinter.connect(user1).claimTemplateBadge(0n, deadline, signature),
+      ).to.be.revertedWithCustomError(badgeMinter, "AlreadyClaimed");
+    });
+
+    it("Should prevent claiming even with a fresh signature for the same badge", async function () {
+      const deadline1 = await futureDeadline();
+      const deadline2 = await futureDeadline();
+      const sig1 = await signTemplateClaim(signer, user1.address, 0n, deadline1);
+      const sig2 = await signTemplateClaim(signer, user1.address, 0n, deadline2);
+
+      await badgeMinter.connect(user1).claimTemplateBadge(0n, deadline1, sig1);
+
+      await expect(badgeMinter.connect(user1).claimTemplateBadge(0n, deadline2, sig2)).to.be.revertedWithCustomError(
+        badgeMinter,
+        "AlreadyClaimed",
+      );
+    });
+
+    it("Should track claims independently per badge ID", async function () {
+      // Create a second template (templateId = 1, badgeId = 2)
+      await badgeTemplate.connect(user1).createTemplate("ipfs://QmBadge2", EMPTY_REQUIREMENTS, 0n);
+
+      const deadline = await futureDeadline();
+      const sig1 = await signTemplateClaim(signer, user1.address, 0n, deadline);
+
+      await badgeMinter.connect(user1).claimTemplateBadge(0n, deadline, sig1);
+
+      expect(await badgeMinter.hasClaimed(user1.address, 1n)).to.be.true;
+      expect(await badgeMinter.hasClaimed(user1.address, 2n)).to.be.false;
+
+      // Can still claim template 1 (badgeId 2)
+      const sig2 = await signTemplateClaim(signer, user1.address, 1n, deadline);
+      await expect(badgeMinter.connect(user1).claimTemplateBadge(1n, deadline, sig2)).to.not.be.reverted;
+    });
+
+    it("Should track claims independently per user", async function () {
+      const deadline = await futureDeadline();
+      const sig1 = await signTemplateClaim(signer, user1.address, 0n, deadline);
+
+      await badgeMinter.connect(user1).claimTemplateBadge(0n, deadline, sig1);
+
+      expect(await badgeMinter.hasClaimed(user1.address, 1n)).to.be.true;
+      expect(await badgeMinter.hasClaimed(user2.address, 1n)).to.be.false;
+
+      // user2 can still claim the same template
+      const sig2 = await signTemplateClaim(signer, user2.address, 0n, deadline);
+      await expect(badgeMinter.connect(user2).claimTemplateBadge(0n, deadline, sig2)).to.not.be.reverted;
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Signature Deadlines
+  // ---------------------------------------------------------------------------
+
+  describe("Signature Deadlines", function () {
+    it("Should accept a signature with a future deadline", async function () {
+      const deadline = await futureDeadline();
+      const signature = await signTemplateClaim(signer, user1.address, 0n, deadline);
+
+      await expect(badgeMinter.connect(user1).claimTemplateBadge(0n, deadline, signature)).to.not.be.reverted;
+    });
+
+    it("Should reject an expired signature", async function () {
+      const pastDeadline = BigInt((await time.latest()) - 60);
+      const signature = await signTemplateClaim(signer, user1.address, 0n, pastDeadline);
+
+      await expect(
+        badgeMinter.connect(user1).claimTemplateBadge(0n, pastDeadline, signature),
+      ).to.be.revertedWithCustomError(badgeMinter, "SignatureExpired");
+    });
+
+    it("Should reject a signature with deadline = 0", async function () {
+      const signature = await signTemplateClaim(signer, user1.address, 0n, 0n);
+
+      await expect(badgeMinter.connect(user1).claimTemplateBadge(0n, 0n, signature)).to.be.revertedWithCustomError(
+        badgeMinter,
+        "SignatureExpired",
+      );
+    });
+
+    it("Should accept a signature with a deadline far in the future", async function () {
+      const farDeadline = BigInt((await time.latest()) + 86400 * 365);
+      const signature = await signTemplateClaim(signer, user1.address, 0n, farDeadline);
+
+      await expect(badgeMinter.connect(user1).claimTemplateBadge(0n, farDeadline, signature)).to.not.be.reverted;
+    });
+
+    it("Should reject a signature after deadline passes via time manipulation", async function () {
+      const deadline = BigInt((await time.latest()) + 300);
+      const signature = await signTemplateClaim(signer, user1.address, 0n, deadline);
+
+      // Advance time past deadline
+      await time.increaseTo(Number(deadline) + 1);
+
+      await expect(
+        badgeMinter.connect(user1).claimTemplateBadge(0n, deadline, signature),
+      ).to.be.revertedWithCustomError(badgeMinter, "SignatureExpired");
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Supply Caps
+  // ---------------------------------------------------------------------------
+
+  describe("Supply Caps", function () {
+    it("Should allow claiming for unlimited supply (maxClaims = 0)", async function () {
+      const deadline = await futureDeadline();
+      const sig = await signTemplateClaim(signer, user1.address, 0n, deadline);
+      await expect(badgeMinter.connect(user1).claimTemplateBadge(0n, deadline, sig)).to.not.be.reverted;
+    });
+
+    it("Should revert with SupplyCapReached when cap is exhausted", async function () {
+      // Create a template with maxClaims = 1 (templateId = 1)
+      await badgeTemplate.connect(user1).createTemplate("ipfs://QmCapped", EMPTY_REQUIREMENTS, 1n);
+      const templateId = 1n;
+
+      const deadline = await futureDeadline();
+      const sig1 = await signTemplateClaim(signer, user1.address, templateId, deadline);
+      await badgeMinter.connect(user1).claimTemplateBadge(templateId, deadline, sig1);
+
+      const sig2 = await signTemplateClaim(signer, user2.address, templateId, deadline);
+      await expect(
+        badgeMinter.connect(user2).claimTemplateBadge(templateId, deadline, sig2),
+      ).to.be.revertedWithCustomError(badgeMinter, "SupplyCapReached");
+    });
+
+    it("Should allow exactly one claim for one-of-one (maxClaims = 1)", async function () {
+      await badgeTemplate.connect(user1).createTemplate("ipfs://QmOneOfOne", EMPTY_REQUIREMENTS, 1n);
+      const templateId = 1n;
+
+      const deadline = await futureDeadline();
+      const sig = await signTemplateClaim(signer, user1.address, templateId, deadline);
+      await expect(badgeMinter.connect(user1).claimTemplateBadge(templateId, deadline, sig)).to.not.be.reverted;
+    });
+
+    it("Should allow claiming up to the supply cap", async function () {
+      await badgeTemplate.connect(user1).createTemplate("ipfs://QmTwo", EMPTY_REQUIREMENTS, 2n);
+      const templateId = 1n;
+
+      const deadline = await futureDeadline();
+      const sig1 = await signTemplateClaim(signer, user1.address, templateId, deadline);
+      const sig2 = await signTemplateClaim(signer, user2.address, templateId, deadline);
+
+      await badgeMinter.connect(user1).claimTemplateBadge(templateId, deadline, sig1);
+      await badgeMinter.connect(user2).claimTemplateBadge(templateId, deadline, sig2);
+
+      expect(await badgeTemplate.getTemplateClaimCount(templateId)).to.equal(2n);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Template Validation
+  // ---------------------------------------------------------------------------
+
+  describe("Template Validation", function () {
+    it("Should revert with BadgeTemplateNotSet if BadgeTemplate is not configured", async function () {
+      const BadgeMinterFactory = await ethers.getContractFactory("BadgeMinter");
+      const freshMinter = await BadgeMinterFactory.deploy(await badgeToken.getAddress(), signer.address, owner.address);
+      await freshMinter.waitForDeployment();
+
+      const MINTER_ROLE = await badgeToken.MINTER_ROLE();
+      await badgeToken.grantRole(MINTER_ROLE, await freshMinter.getAddress());
+
+      const freshDomain: TypedDataDomain = {
         name: "BadgeMinter",
         version: "1",
         chainId: (await ethers.provider.getNetwork()).chainId,
-        verifyingContract: await newBadgeMinter.getAddress(),
+        verifyingContract: await freshMinter.getAddress(),
       };
 
-      const message = {
+      const deadline = await futureDeadline();
+      const sig = await signer.signTypedData(freshDomain, templateClaimTypes, {
         user: user1.address,
-        badgeId: BADGE_ID_1,
-      };
+        templateId: 0n,
+        deadline,
+      });
 
-      const signature = await signer.signTypedData(newDomain, types, message);
-
-      // Should fail because BadgeMinter doesn't have MINTER_ROLE
-      await expect(newBadgeMinter.connect(user1).claimBadge(BADGE_ID_1, signature)).to.be.reverted;
+      await expect(freshMinter.connect(user1).claimTemplateBadge(0n, deadline, sig)).to.be.revertedWithCustomError(
+        freshMinter,
+        "BadgeTemplateNotSet",
+      );
     });
 
-    it("Should respect BadgeToken soulbound mode", async function () {
-      const signature = await getSignature(user1.address, BADGE_ID_1);
+    it("Should revert with TemplateNotFound for a non-existent template", async function () {
+      const deadline = await futureDeadline();
+      const sig = await signTemplateClaim(signer, user1.address, 99n, deadline);
 
-      await badgeMinter.connect(user1).claimBadge(BADGE_ID_1, signature);
+      await expect(badgeMinter.connect(user1).claimTemplateBadge(99n, deadline, sig)).to.be.revertedWithCustomError(
+        badgeMinter,
+        "TemplateNotFound",
+      );
+    });
 
-      // Enable soulbound on BadgeToken
+    it("Should revert with TemplateNotActive for a deactivated template", async function () {
+      await badgeTemplate.connect(user1).deactivateTemplate(0n);
+
+      const deadline = await futureDeadline();
+      const sig = await signTemplateClaim(signer, user1.address, 0n, deadline);
+
+      await expect(badgeMinter.connect(user1).claimTemplateBadge(0n, deadline, sig)).to.be.revertedWithCustomError(
+        badgeMinter,
+        "TemplateNotActive",
+      );
+    });
+
+    it("Should revert with TemplateNotActive for an archived template", async function () {
+      await badgeTemplate.connect(user1).archiveTemplate(0n);
+
+      const deadline = await futureDeadline();
+      const sig = await signTemplateClaim(signer, user1.address, 0n, deadline);
+
+      await expect(badgeMinter.connect(user1).claimTemplateBadge(0n, deadline, sig)).to.be.revertedWithCustomError(
+        badgeMinter,
+        "TemplateNotActive",
+      );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // EIP-712 Template Signatures
+  // ---------------------------------------------------------------------------
+
+  describe("EIP-712 Template Signatures", function () {
+    it("Should generate a valid domain separator", async function () {
+      const domainSeparator = await badgeMinter.getDomainSeparator();
+      expect(domainSeparator).to.match(/^0x[a-fA-F0-9]{64}$/);
+    });
+
+    it("Should generate a correct TemplateClaim digest via getTemplateClaimDigest", async function () {
+      const deadline = await futureDeadline();
+      const digest = await badgeMinter.getTemplateClaimDigest(user1.address, 0n, deadline);
+      expect(digest).to.match(/^0x[a-fA-F0-9]{64}$/);
+    });
+
+    it("Should accept a valid EIP-712 TemplateClaim signature", async function () {
+      const deadline = await futureDeadline();
+      const signature = await signTemplateClaim(signer, user1.address, 0n, deadline);
+
+      await expect(badgeMinter.connect(user1).claimTemplateBadge(0n, deadline, signature)).to.not.be.reverted;
+    });
+
+    it("Should reject a signature signed by an unauthorized signer", async function () {
+      const deadline = await futureDeadline();
+      const signature = await signTemplateClaim(user2, user1.address, 0n, deadline);
+
+      await expect(
+        badgeMinter.connect(user1).claimTemplateBadge(0n, deadline, signature),
+      ).to.be.revertedWithCustomError(badgeMinter, "InvalidSignature");
+    });
+
+    it("Should reject a signature for the wrong user", async function () {
+      const deadline = await futureDeadline();
+      const signature = await signTemplateClaim(signer, user2.address, 0n, deadline);
+
+      // user1 submits user2's signature
+      await expect(
+        badgeMinter.connect(user1).claimTemplateBadge(0n, deadline, signature),
+      ).to.be.revertedWithCustomError(badgeMinter, "InvalidSignature");
+    });
+
+    it("Should reject a signature for the wrong templateId", async function () {
+      await badgeTemplate.connect(user1).createTemplate("ipfs://QmOther", EMPTY_REQUIREMENTS, 0n);
+
+      const deadline = await futureDeadline();
+      const signature = await signTemplateClaim(signer, user1.address, 1n, deadline);
+
+      // user1 tries to claim template 0 with template 1's signature
+      await expect(
+        badgeMinter.connect(user1).claimTemplateBadge(0n, deadline, signature),
+      ).to.be.revertedWithCustomError(badgeMinter, "InvalidSignature");
+    });
+
+    it("Should reject a signature with the wrong deadline", async function () {
+      const correctDeadline = await futureDeadline();
+      const wrongDeadline = correctDeadline + 100n;
+      const signature = await signTemplateClaim(signer, user1.address, 0n, correctDeadline);
+
+      await expect(
+        badgeMinter.connect(user1).claimTemplateBadge(0n, wrongDeadline, signature),
+      ).to.be.revertedWithCustomError(badgeMinter, "InvalidSignature");
+    });
+
+    it("Should reject a malformed / truncated signature", async function () {
+      const deadline = await futureDeadline();
+      await expect(badgeMinter.connect(user1).claimTemplateBadge(0n, deadline, "0x1234")).to.be.reverted;
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Admin Functions
+  // ---------------------------------------------------------------------------
+
+  describe("Admin Functions", function () {
+    describe("setSigner", function () {
+      it("Should allow owner to update signer", async function () {
+        await badgeMinter.connect(owner).setSigner(newSigner.address);
+        expect(await badgeMinter.getFunction("signer")()).to.equal(newSigner.address);
+      });
+
+      it("Should emit SignerUpdated event", async function () {
+        await expect(badgeMinter.connect(owner).setSigner(newSigner.address))
+          .to.emit(badgeMinter, "SignerUpdated")
+          .withArgs(signer.address, newSigner.address);
+      });
+
+      it("Should prevent non-owner from updating signer", async function () {
+        await expect(badgeMinter.connect(user1).setSigner(newSigner.address)).to.be.revertedWithCustomError(
+          badgeMinter,
+          "OwnableUnauthorizedAccount",
+        );
+      });
+
+      it("Should revert when setting signer to zero address", async function () {
+        await expect(badgeMinter.connect(owner).setSigner(ethers.ZeroAddress)).to.be.revertedWithCustomError(
+          badgeMinter,
+          "InvalidAddress",
+        );
+      });
+
+      it("Should reject claims signed by the old signer after an update", async function () {
+        const deadline = await futureDeadline();
+        const oldSignature = await signTemplateClaim(signer, user1.address, 0n, deadline);
+
+        await badgeMinter.connect(owner).setSigner(newSigner.address);
+
+        await expect(
+          badgeMinter.connect(user1).claimTemplateBadge(0n, deadline, oldSignature),
+        ).to.be.revertedWithCustomError(badgeMinter, "InvalidSignature");
+      });
+
+      it("Should accept claims signed by the new signer after an update", async function () {
+        await badgeMinter.connect(owner).setSigner(newSigner.address);
+
+        const deadline = await futureDeadline();
+        const newSignature = await signTemplateClaim(newSigner, user1.address, 0n, deadline);
+
+        await expect(badgeMinter.connect(user1).claimTemplateBadge(0n, deadline, newSignature)).to.not.be.reverted;
+      });
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // View Helpers
+  // ---------------------------------------------------------------------------
+
+  describe("View Helpers", function () {
+    it("hasUserClaimedBadge should return false before a claim", async function () {
+      expect(await badgeMinter.hasUserClaimedBadge(user1.address, 1n)).to.be.false;
+    });
+
+    it("hasUserClaimedBadge should return true after a claim", async function () {
+      const deadline = await futureDeadline();
+      const sig = await signTemplateClaim(signer, user1.address, 0n, deadline);
+      await badgeMinter.connect(user1).claimTemplateBadge(0n, deadline, sig);
+
+      expect(await badgeMinter.hasUserClaimedBadge(user1.address, 1n)).to.be.true;
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Integration with BadgeToken
+  // ---------------------------------------------------------------------------
+
+  describe("Integration with BadgeToken", function () {
+    it("Should fail if BadgeMinter does not have MINTER_ROLE", async function () {
+      const BadgeTokenFactory = await ethers.getContractFactory("BadgeToken");
+      const newToken = await BadgeTokenFactory.deploy(BASE_URI);
+      await newToken.waitForDeployment();
+
+      const BadgeMinterFactory = await ethers.getContractFactory("BadgeMinter");
+      const newMinter = await BadgeMinterFactory.deploy(await newToken.getAddress(), signer.address, owner.address);
+      await newMinter.waitForDeployment();
+
+      await newMinter.connect(owner).setBadgeTemplate(await badgeTemplate.getAddress());
+      await badgeTemplate.connect(owner).setAuthorizedMinter(await newMinter.getAddress());
+
+      const newDomain: TypedDataDomain = {
+        name: "BadgeMinter",
+        version: "1",
+        chainId: (await ethers.provider.getNetwork()).chainId,
+        verifyingContract: await newMinter.getAddress(),
+      };
+
+      const deadline = await futureDeadline();
+      const sig = await signer.signTypedData(newDomain, templateClaimTypes, {
+        user: user1.address,
+        templateId: 0n,
+        deadline,
+      });
+
+      // Should fail because newMinter doesn't have MINTER_ROLE on newToken
+      await expect(newMinter.connect(user1).claimTemplateBadge(0n, deadline, sig)).to.be.reverted;
+    });
+
+    it("Should respect BadgeToken soulbound mode after minting", async function () {
+      const deadline = await futureDeadline();
+      const sig = await signTemplateClaim(signer, user1.address, 0n, deadline);
+      await badgeMinter.connect(user1).claimTemplateBadge(0n, deadline, sig);
+
       const ADMIN_ROLE = await badgeToken.ADMIN_ROLE();
       await badgeToken.grantRole(ADMIN_ROLE, owner.address);
       await badgeToken.setSoulbound(true);
 
-      // Transfer should be blocked
       await expect(
-        badgeToken.connect(user1).safeTransferFrom(user1.address, user2.address, BADGE_ID_1, 1, "0x"),
+        badgeToken.connect(user1).safeTransferFrom(user1.address, user2.address, 1n, 1n, "0x"),
       ).to.be.revertedWithCustomError(badgeToken, "TransferBlocked");
     });
   });
