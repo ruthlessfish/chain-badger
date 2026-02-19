@@ -1,9 +1,9 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import type { NextPage } from "next";
 import { useAccount } from "wagmi";
-import { BadgeGrid } from "~~/components/chainbadger";
 
 const Home: NextPage = () => {
   const { address: connectedAddress } = useAccount();
@@ -33,19 +33,23 @@ const Home: NextPage = () => {
           )}
         </div>
 
-        {/* Badge Grid Section */}
+        {/* CTA Section */}
         <div className="w-full px-8 pb-12">
           <div className="max-w-7xl mx-auto">
             <div className="mb-8">
-              <h2 className="text-3xl font-bold mb-2">Available Badges</h2>
-              <p className="text-base-content/60">
-                {connectedAddress
-                  ? "Claim badges to showcase your achievements"
-                  : "Connect your wallet to claim badges"}
+              <h2 className="text-3xl font-bold mb-2">Badge Templates</h2>
+              <p className="text-base-content/60 mb-6">
+                Community-created badges with on-chain requirements. Anyone can create a template — anyone can claim.
               </p>
+              <div className="flex gap-4">
+                <Link href="/templates" className="btn btn-primary">
+                  Browse Badges
+                </Link>
+                <Link href="/create-template" className="btn btn-outline">
+                  Create a Badge →
+                </Link>
+              </div>
             </div>
-
-            <BadgeGrid />
           </div>
         </div>
 
