@@ -48,13 +48,13 @@ export function TemplateCard({ template }: Props) {
       {/* Image */}
       <figure className="h-40 bg-base-300 flex items-center justify-center overflow-hidden rounded-t-2xl">
         {imageUri ? (
-          <Image
+          <img
             src={imageUri}
             alt={name}
             width={160}
             height={160}
             className="object-cover w-full h-full"
-            unoptimized={imageUri.startsWith("ipfs://") || imageUri.startsWith("data:")}
+            // unoptimized={imageUri.startsWith("ipfs://") || imageUri.startsWith("data:")}
           />
         ) : (
           <span className="text-5xl">🏅</span>
