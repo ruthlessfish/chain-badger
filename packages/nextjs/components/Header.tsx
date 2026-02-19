@@ -21,6 +21,14 @@ const allMenuLinks: HeaderMenuLink[] = [
     href: "/",
   },
   {
+    label: "Badges",
+    href: "/templates",
+  },
+  {
+    label: "Create Badge",
+    href: "/create-template",
+  },
+  {
     label: "My Badges",
     href: "/my-badges",
   },
