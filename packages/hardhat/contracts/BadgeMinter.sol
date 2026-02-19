@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import "./BadgeToken.sol";
+import "./BadgeTemplate.sol";
 import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -20,6 +21,9 @@ contract BadgeMinter is EIP712, Ownable {
     /// @notice Reference to the BadgeToken contract
     BadgeToken public badgeToken;
     
+    /// @notice Reference to the BadgeTemplate contract
+    BadgeTemplate public badgeTemplate;
+    
     /// @notice Address authorized to sign claim messages (backend wallet)
     address public signer;
 
@@ -29,12 +33,18 @@ contract BadgeMinter is EIP712, Ownable {
     /// @notice EIP-712 typehash for Claim struct
     bytes32 private constant CLAIM_TYPEHASH =
         keccak256("Claim(address user,uint256 badgeId)");
+    
+    /// @notice EIP-712 typehash for TemplateClaim struct (includes deadline)
+    bytes32 private constant TEMPLATE_CLAIM_TYPEHASH =
+        keccak256("TemplateClaim(address user,uint256 templateId,uint256 deadline)");
 
     // -------------------------
     // Events
     // -------------------------
     event BadgeClaimed(address indexed user, uint256 indexed badgeId);
+    event TemplateBadgeClaimed(address indexed user, uint256 indexed templateId, uint256 indexed badgeId);
     event SignerUpdated(address indexed oldSigner, address indexed newSigner);
+    event BadgeTemplateUpdated(address indexed templateAddress);
 
     // -------------------------
     // Errors
@@ -42,6 +52,11 @@ contract BadgeMinter is EIP712, Ownable {
     error AlreadyClaimed();
     error InvalidSignature();
     error InvalidAddress();
+    error TemplateNotFound();
+    error TemplateNotActive();
+    error BadgeTemplateNotSet();
+    error SignatureExpired();
+    error SupplyCapReached();
 
     // -------------------------
     // Constructor
@@ -177,5 +192,118 @@ contract BadgeMinter is EIP712, Ownable {
         returns (bool)
     {
         return hasClaimed[user][badgeId];
+    }
+
+    // -------------------------
+    // Template Badge Claiming
+    // -------------------------
+    /**
+     * @notice Claim a badge from a template with a valid signature
+     * @param templateId The ID of the template to claim from
+     * @param deadline Signature expiration timestamp
+     * @param signature EIP-712 signature from the authorized signer
+     */
+    function claimTemplateBadge(
+        uint256 templateId,
+        uint256 deadline,
+        bytes calldata signature
+    ) external {
+        address user = msg.sender;
+
+        // Verify BadgeTemplate is set
+        if (address(badgeTemplate) == address(0)) revert BadgeTemplateNotSet();
+
+        // Verify deadline
+        if (block.timestamp > deadline) revert SignatureExpired();
+
+        // Load template
+        BadgeTemplate.BadgeTemplateData memory template = badgeTemplate.getTemplate(templateId);
+
+        // Verify template is active
+        if (!template.active || template.archived) revert TemplateNotActive();
+
+        // Verify supply cap
+        if (template.maxClaims > 0) {
+            uint256 claimCount = badgeTemplate.getTemplateClaimCount(templateId);
+            if (claimCount >= template.maxClaims) revert SupplyCapReached();
+        }
+
+        uint256 badgeId = template.badgeId;
+
+        // Check if already claimed
+        if (hasClaimed[user][badgeId]) revert AlreadyClaimed();
+
+        // Verify signature
+        if (!_verifyTemplateSignature(user, templateId, deadline, signature)) {
+            revert InvalidSignature();
+        }
+
+        // Mark as claimed
+        hasClaimed[user][badgeId] = true;
+
+        // Increment claim count on template
+        badgeTemplate.incrementClaimCount(templateId);
+
+        // Mint the badge
+        badgeToken.mint(user, badgeId);
+
+        emit BadgeClaimed(user, badgeId);
+        emit TemplateBadgeClaimed(user, templateId, badgeId);
+    }
+
+    /**
+     * @notice Verify an EIP-712 signature for a template badge claim
+     * @param user The address claiming the badge
+     * @param templateId The template ID being claimed
+     * @param deadline The signature expiration timestamp
+     * @param signature The signature to verify
+     * @return bool True if signature is valid
+     */
+    function _verifyTemplateSignature(
+        address user,
+        uint256 templateId,
+        uint256 deadline,
+        bytes calldata signature
+    ) internal view returns (bool) {
+        // Build the EIP-712 struct hash
+        bytes32 structHash = keccak256(
+            abi.encode(TEMPLATE_CLAIM_TYPEHASH, user, templateId, deadline)
+        );
+
+        // Build the typed data hash
+        bytes32 digest = _hashTypedDataV4(structHash);
+
+        // Recover the signer from the signature
+        address recoveredSigner = digest.recover(signature);
+
+        // Check if recovered signer matches authorized signer
+        return recoveredSigner == signer;
+    }
+
+    /**
+     * @notice Get the typed data hash for a template claim (useful for frontend signing)
+     * @param user The address claiming the badge
+     * @param templateId The template ID being claimed
+     * @param deadline The signature expiration timestamp
+     * @return bytes32 The typed data hash to sign
+     */
+    function getTemplateClaimDigest(
+        address user,
+        uint256 templateId,
+        uint256 deadline
+    ) external view returns (bytes32) {
+        bytes32 structHash = keccak256(
+            abi.encode(TEMPLATE_CLAIM_TYPEHASH, user, templateId, deadline)
+        );
+        return _hashTypedDataV4(structHash);
+    }
+
+    /**
+     * @notice Set the BadgeTemplate contract address
+     * @param templateAddress Address of the BadgeTemplate contract
+     */
+    function setBadgeTemplate(address templateAddress) external onlyOwner {
+        badgeTemplate = BadgeTemplate(templateAddress);
+        emit BadgeTemplateUpdated(templateAddress);
     }
 }
