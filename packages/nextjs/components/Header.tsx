@@ -5,8 +5,10 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { hardhat } from "viem/chains";
-import { Bars3Icon, BugAntIcon } from "@heroicons/react/24/outline";
+import { useAccount } from "wagmi";
+import { Bars3Icon, BugAntIcon, ShieldCheckIcon } from "@heroicons/react/24/outline";
 import { FaucetButton, RainbowKitCustomConnectButton } from "~~/components/scaffold-eth";
+import { useAdminStatus } from "~~/hooks/chainbadger/useAdminStatus";
 import { useOutsideClick, useTargetNetwork } from "~~/hooks/scaffold-eth";
 
 type HeaderMenuLink = {
@@ -15,7 +17,7 @@ type HeaderMenuLink = {
   icon?: React.ReactNode;
 };
 
-const allMenuLinks: HeaderMenuLink[] = [
+const baseMenuLinks: HeaderMenuLink[] = [
   {
     label: "Home",
     href: "/",
@@ -43,15 +45,25 @@ const allMenuLinks: HeaderMenuLink[] = [
 // Note: NEXT_PUBLIC_ prefix needed for client-side access
 const isDebugEnabled = process.env.NEXT_PUBLIC_ENABLE_DEBUG_ROUTES === "true";
 export const menuLinks: HeaderMenuLink[] = isDebugEnabled
-  ? allMenuLinks
-  : allMenuLinks.filter(link => link.href !== "/debug");
+  ? baseMenuLinks
+  : baseMenuLinks.filter(link => link.href !== "/debug");
 
 export const HeaderMenuLinks = () => {
   const pathname = usePathname();
+  const { isConnected } = useAccount();
+  const { isOwner } = useAdminStatus();
+
+  // Build the full link list, inserting the Admin link when the connected wallet is owner
+  const linksToRender: HeaderMenuLink[] = [
+    ...menuLinks,
+    ...(isConnected && isOwner
+      ? [{ label: "Admin", href: "/admin", icon: <ShieldCheckIcon className="h-4 w-4" /> }]
+      : []),
+  ];
 
   return (
     <>
-      {menuLinks.map(({ label, href, icon }) => {
+      {linksToRender.map(({ label, href, icon }) => {
         const isActive = pathname === href;
         return (
           <li key={href}>
